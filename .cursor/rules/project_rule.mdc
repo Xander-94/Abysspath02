@@ -126,7 +126,15 @@ const testingTestingGuidelines = `
 实现适当的 CI/CD 测试
 `;
 不使用不符合版本的依赖和插件，不使用任何过时插件；
-新创建页面时在开头注释说明作用。
+新创建页面时在开头注释说明作用;
+- 状态管理：Riverpod
+
+  路由管理：GoRoute
+  网络请求：Dio+Retrofit
+
+  依赖注入：get_it+injectable
+  建议：1.避免全局状态滥用，优先使用Providerhuoriverpod按需传递状态。2.路由配置规范化，使用AutoRoute或GoRoute。 3.测试驱动开发，结合flutter_test和mockito编写单元测试，确保状态逻辑的可靠性。
+
 
 
 ##问题解决

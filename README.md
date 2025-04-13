@@ -9,7 +9,10 @@ AbyssPath是一个基于AI的个性化学习路径生成系统，通过智能评
 - 数据库：Supabase/PostgreSQL
 - 缓存：Redis
 - AI模型：Deepseek API
-
+- Riverpod (状态管理)
+- GoRouter (路由管理)
+- Dio + Retrofit (网络请求)
+- GetIt + Injectable (依赖注入)
 ## 系统架构
 ```
 [Flutter App] <-> [FastAPI] <-> [Supabase] <-> [Redis] <-> [Deepseek API]
