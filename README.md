@@ -939,4 +939,41 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
 - 错误重试机制
 - 响应数据验证
 
+## Git分支管理规范
+
+### 分支结构
+```
+main/          # 主分支，用于存放稳定的生产版本
+├── develop/   # 开发分支，所有功能开发都基于此分支
+│   ├── feature/  # 功能分支
+│   ├── hotfix/   # 紧急修复分支
+│   └── release/  # 发布分支
+```
+
+### 分支命名规范
+
+#### 功能分支 (feature)
+- 格式：`feature/模块名-功能名`
+- 示例：`feature/auth-login`
+- 说明：用于开发新功能，从develop分支创建，完成后合并回develop分支
+
+#### 修复分支 (hotfix)
+- 格式：`hotfix/问题描述`
+- 示例：`hotfix/fix-login-error`
+- 说明：用于修复生产环境中的紧急问题，从main分支创建，完成后同时合并到main和develop分支
+
+#### 发布分支 (release)
+- 格式：`release/版本号`
+- 示例：`release/v2.0.0`
+- 说明：用于版本发布，从develop分支创建，完成后同时合并到main和develop分支
+
+### 工作流程
+1. 功能开发：从develop分支创建feature分支
+2. 问题修复：从main分支创建hotfix分支
+3. 版本发布：从develop分支创建release分支
+4. 合并规则：
+   - feature分支 -> develop分支
+   - hotfix分支 -> main分支 + develop分支
+   - release分支 -> main分支 + develop分支
+
 
