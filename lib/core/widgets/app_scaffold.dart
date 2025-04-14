@@ -15,6 +15,10 @@ class AppScaffold extends ConsumerWidget {
   final Widget? leading;
   final GlobalKey<ScaffoldState>? scaffoldKey;
   final Color? backgroundColor;
+  final bool enableSwipeBack;  // 是否启用滑动返回
+  final double elevation;  // AppBar 阴影
+  final Widget? floatingActionButton;  // 悬浮按钮
+  final FloatingActionButtonLocation? floatingActionButtonLocation;  // 悬浮按钮位置
 
   const AppScaffold({
     super.key,
@@ -27,106 +31,106 @@ class AppScaffold extends ConsumerWidget {
     this.leading,
     this.scaffoldKey,
     this.backgroundColor,
+    this.enableSwipeBack = true,
+    this.elevation = 0.5,
+    this.floatingActionButton,
+    this.floatingActionButtonLocation,
   });
-
-  void _onNavTap(BuildContext context, WidgetRef ref, int index) {
-    ref.read(bottomNavIndexProvider.notifier).state = index;
-    switch (index) {
-      case 0: context.go('/'); break;
-      case 1: context.go('/learning-path'); break;
-      case 2: context.go('/assessment'); break;
-      case 3: context.go('/profile'); break;
-      case 4: context.go('/settings'); break;
-    }
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentIndex = ref.watch(bottomNavIndexProvider);
+    final theme = Theme.of(context);
 
-    return Scaffold(
+    Widget scaffold = Scaffold(
       key: scaffoldKey,
-      backgroundColor: backgroundColor ?? Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: backgroundColor ?? theme.scaffoldBackgroundColor,
       drawer: drawer,
       appBar: AppBar(
         backgroundColor: Colors.white,
-        elevation: 1,
-        title: Text(title),
+        elevation: elevation,
+        centerTitle: true,  // 标题居中
+        title: Text(title, style: theme.textTheme.titleLarge),
         leading: leading ?? (showBackButton ? IconButton(
-          icon: const Icon(Icons.arrow_back_ios),
+          icon: const Icon(Icons.arrow_back_ios, size: 20),
           onPressed: () => context.pop(),
         ) : null),
         actions: actions,
       ),
       body: body,
-      bottomNavigationBar: showBottomNav ? _buildBottomNav(context) : null,
+      bottomNavigationBar: showBottomNav ? _buildBottomNav(context, theme) : null,
+      floatingActionButton: floatingActionButton,
+      floatingActionButtonLocation: floatingActionButtonLocation,
     );
+
+    // 添加滑动返回手势
+    if (enableSwipeBack && showBackButton) {
+      return WillPopScope(
+        onWillPop: () async {
+          if (context.canPop()) {
+            context.pop();
+            return false;
+          }
+          return true;
+        },
+        child: scaffold,
+      );
+    }
+
+    return scaffold;
   }
 
-  Widget _buildBottomNav(BuildContext context) {
+  Widget _buildBottomNav(BuildContext context, ThemeData theme) {
     final currentPath = GoRouterState.of(context).matchedLocation;
     
     return NavigationBar(
       selectedIndex: _getSelectedIndex(currentPath),
       onDestinationSelected: (index) => _onItemTapped(context, index),
+      backgroundColor: Colors.white,
+      elevation: 8,  // 增加阴影
+      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,  // 始终显示标签
+      animationDuration: const Duration(milliseconds: 400),  // 动画时长
       destinations: const [
         NavigationDestination(
-          icon: Icon(Icons.home_outlined),
-          selectedIcon: Icon(Icons.home),
+          icon: Icon(Icons.home_outlined, size: 24),
+          selectedIcon: Icon(Icons.home, size: 24),
           label: '首页',
         ),
         NavigationDestination(
-          icon: Icon(Icons.school_outlined),
-          selectedIcon: Icon(Icons.school),
+          icon: Icon(Icons.school_outlined, size: 24),
+          selectedIcon: Icon(Icons.school, size: 24),
           label: '学习',
         ),
         NavigationDestination(
-          icon: Icon(Icons.assessment_outlined),
-          selectedIcon: Icon(Icons.assessment),
+          icon: Icon(Icons.assessment_outlined, size: 24),
+          selectedIcon: Icon(Icons.assessment, size: 24),
           label: '评估',
         ),
         NavigationDestination(
-          icon: Icon(Icons.person_outline),
-          selectedIcon: Icon(Icons.person),
+          icon: Icon(Icons.person_outline, size: 24),
+          selectedIcon: Icon(Icons.person, size: 24),
           label: '我的',
         ),
       ],
     );
   }
 
-  int _getSelectedIndex(String currentPath) {
-    switch (currentPath) {
-      case '/':
-        return 0;
-      case '/learning-path':
-        return 1;
-      case '/assessment':
-        return 2;
-      case '/profile':
-        return 3;
-      default:
-        return 0;
-    }
-  }
+  int _getSelectedIndex(String currentPath) => switch (currentPath) {
+    '/' => 0,
+    '/learning-path' => 1,
+    '/assessment' => 2,
+    '/profile' => 3,
+    _ => 0,
+  };
 
   void _onItemTapped(BuildContext context, int index) {
-    String path;
-    switch (index) {
-      case 0:
-        path = '/';
-        break;
-      case 1:
-        path = '/learning-path';
-        break;
-      case 2:
-        path = '/assessment';
-        break;
-      case 3:
-        path = '/profile';
-        break;
-      default:
-        path = '/';
-    }
+    final path = switch (index) {
+      0 => '/',
+      1 => '/learning-path',
+      2 => '/assessment',
+      3 => '/profile',
+      _ => '/',
+    };
     context.go(path);
   }
 } 

@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 /// 应用颜色配置
 class AppColors {
   // 主题色
-  static const primary = Color(0xFF2082FF);
-  static const secondary = Color(0xFF6C63FF);
-  static const tertiary = Color(0xFF4CAF50);
+  static const primary = Color(0xFF00BCD4);  // 蒂芙尼蓝
+  static const secondary = Color(0xFF26C6DA);  // 浅蒂芙尼蓝
+  static const tertiary = Color(0xFF00ACC1);  // 深蒂芙尼蓝
 
   // 背景色
   static const background = Color(0xFFF5F5F5);

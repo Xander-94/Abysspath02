@@ -10,6 +10,7 @@ import '../../features/learning_path/pages/learning_path_page.dart';
 import '../../features/learning_path/pages/learning_path_detail_page.dart';
 import '../../features/profile/pages/profile_page.dart';
 import '../../features/settings/pages/settings_page.dart';
+import '../../features/survey/pages/survey_page.dart';
 import '../providers/app_providers.dart';
 import '../config/supabase_config.dart';
 
@@ -169,6 +170,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(opacity: animation, child: child);
           },
+        ),
+      ),
+
+      // 问卷路由
+      GoRoute(
+        path: '/survey/:id',
+        builder: (context, state) => SurveyPage(
+          surveyId: state.pathParameters['id']!,
         ),
       ),
     ],

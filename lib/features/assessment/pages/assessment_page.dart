@@ -1,46 +1,88 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/widgets/app_scaffold.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_styles.dart';
-import '../../../core/widgets/app_scaffold.dart';
 
-class AssessmentPage extends ConsumerWidget {
+class AssessmentPage extends StatelessWidget {
   const AssessmentPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return AppScaffold(
       title: '能力评估',
-      body: GridView.count(
-        crossAxisCount: 2,
+      body: ListView(
         padding: const EdgeInsets.all(16),
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 16,
         children: [
           _buildAssessmentCard(
             context,
-            icon: Icons.assignment,
             title: '通用问卷',
-            description: '基础能力评估问卷',
-            color: const Color(0xFF2082FF),  // 莱茵蓝
-            onTap: () => context.go('/assessment/general'),
+            subtitle: '基础能力评估问卷',
+            description: '全面评估您的学习能力、兴趣和目标，包含基础信息、能力评估、兴趣图谱、学习模式等多个维度',
+            color: Colors.blue,
+            icon: Icons.assignment,
+            onTap: () async {
+              final supabase = Supabase.instance.client;
+              try {
+                final surveyData = await supabase
+                    .from('surveys')
+                    .select('id')
+                    .eq('title', '通用学习能力评估问卷')
+                    .single();
+                
+                if (context.mounted) {
+                  context.push('/survey/${surveyData['id']}');
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('获取问卷失败，请稍后重试')),
+                  );
+                }
+              }
+            },
           ),
+          const SizedBox(height: 16),
           _buildAssessmentCard(
             context,
-            icon: Icons.check_circle,
             title: '多选问卷',
-            description: '专项技能评估',
-            color: const Color(0xFF00B8D4),  // 青色
-            onTap: () => context.go('/assessment/multiple'),
+            subtitle: '专项技能评估',
+            description: '针对特定领域的专项技能评估，帮助您了解在该领域的具体能力水平',
+            color: Colors.teal,
+            icon: Icons.check_circle,
+            onTap: () async {
+              final supabase = Supabase.instance.client;
+              try {
+                final surveyData = await supabase
+                    .from('surveys')
+                    .select('id')
+                    .eq('title', '学习者画像多选问卷')
+                    .single();
+                
+                if (context.mounted) {
+                  context.push('/survey/${surveyData['id']}');
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('获取问卷失败，请稍后重试')),
+                  );
+                }
+              }
+            },
           ),
+          const SizedBox(height: 16),
           _buildAssessmentCard(
             context,
-            icon: Icons.chat,
             title: '对话评估',
-            description: 'AI对话能力评估',
-            color: const Color(0xFF7C4DFF),  // 紫色
-            onTap: () => context.go('/assessment/conversation'),
+            subtitle: 'AI对话能力评估',
+            description: '通过智能对话的方式，评估您的学习能力和知识掌握程度',
+            color: Colors.purple,
+            icon: Icons.chat,
+            onTap: () {
+              // TODO: 实现对话评估跳转
+            },
           ),
         ],
       ),
@@ -49,59 +91,69 @@ class AssessmentPage extends ConsumerWidget {
 
   Widget _buildAssessmentCard(
     BuildContext context, {
-    required IconData icon,
     required String title,
+    required String subtitle,
     required String description,
     required Color color,
+    required IconData icon,
     required VoidCallback onTap,
   }) {
     return Card(
-      elevation: 4,
+      clipBehavior: Clip.antiAlias,
+      elevation: 2,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
             gradient: LinearGradient(
+              colors: [color.withOpacity(0.8), color],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                color.withOpacity(0.8),
-                color,
-              ],
             ),
           ),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                icon,
-                size: 48,
-                color: Colors.white,
+              Row(
+                children: [
+                  Icon(icon, color: Colors.white, size: 32),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.white.withOpacity(0.8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
               Text(
                 description,
                 style: TextStyle(
                   fontSize: 14,
-                  color: Colors.white.withOpacity(0.8),
+                  color: Colors.white.withOpacity(0.9),
                 ),
-                textAlign: TextAlign.center,
               ),
             ],
           ),
