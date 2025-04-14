@@ -1,0 +1,204 @@
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict
+import httpx
+import os
+import logging
+from dotenv import load_dotenv
+from routers import chat
+from datetime import datetime
+import json
+from services.deepseek_service import deepseek_service, DeepseekError
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# 加载环境变量
+load_dotenv()
+
+app = FastAPI(
+    title="AbyssPath AI Service",
+    description="AI驱动的个性化学习路径生成器",
+    version="1.0.0"
+)
+
+# 配置CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 在生产环境中需要限制
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Deepseek配置
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
+
+if not DEEPSEEK_API_KEY:
+    logger.error("DEEPSEEK_API_KEY未设置")
+    raise ValueError("DEEPSEEK_API_KEY必须设置")
+
+logger.info(f"使用Deepseek API URL: {DEEPSEEK_BASE_URL}")
+logger.info(f"API Key前缀: {DEEPSEEK_API_KEY[:8]}...")
+
+# 系统提示词
+SYSTEM_PROMPT = """你是一个专业的学习能力评估助手，负责通过对话评估用户的学习能力、兴趣和目标。
+评估维度包括：
+1. 学习方法和习惯
+2. 知识掌握和记忆能力
+3. 学习动机和目标
+4. 时间管理能力
+5. 问题解决能力
+6. 自我反思和调整能力
+
+请通过提问和交谈，了解用户的具体情况，并在合适的时机给出以下内容：
+1. 对用户当前学习状态的分析
+2. 个性化的学习建议
+3. 可能存在的问题和改进方向
+4. 具体的行动建议
+
+在对话过程中，请：
+1. 保持专业、友好的语气
+2. 循序渐进地收集信息
+3. 适时给出具体的例子和建议
+4. 鼓励用户进行自我反思
+5. 根据用户的反馈调整建议"""
+
+class Message(BaseModel):
+    role: str
+    content: str
+
+# 对话历史存储
+class ConversationManager:
+    def __init__(self):
+        self.conversations: Dict[str, List[Message]] = {}
+        self.max_history = 10  # 最大历史消息数
+    
+    def add_message(self, conversation_id: str, message: Message) -> None:
+        if conversation_id not in self.conversations:
+            self.conversations[conversation_id] = []
+        self.conversations[conversation_id].append(message)
+        # 保持最近的消息
+        if len(self.conversations[conversation_id]) > self.max_history:
+            self.conversations[conversation_id] = self.conversations[conversation_id][-self.max_history:]
+    
+    def get_history(self, conversation_id: str) -> List[Message]:
+        return self.conversations.get(conversation_id, [])
+    
+    def clear_history(self, conversation_id: str) -> None:
+        if conversation_id in self.conversations:
+            del self.conversations[conversation_id]
+
+# 全局对话管理器实例
+conversation_manager = ConversationManager()
+
+class ChatRequest(BaseModel):
+    message: str
+    conversation_id: Optional[str] = None
+    metadata: Optional[Dict] = None
+
+    @property
+    def is_valid(self) -> bool:
+        return bool(self.message.strip())
+
+class ChatResponse(BaseModel):
+    content: str
+    conversation_id: str
+    success: bool = True
+    error: Optional[str] = None
+    metadata: Optional[Dict] = None
+
+# 注册路由
+app.include_router(chat.router)
+
+@app.get("/")
+async def root():
+    return {"message": "Welcome to AbyssPath AI Service"}
+
+@app.get("/metrics")
+async def get_metrics():
+    """获取Deepseek服务监控指标"""
+    return deepseek_service.get_metrics()
+
+@app.get("/health")
+async def health_check():
+    """健康检查端点"""
+    try:
+        # 检查API连接
+        test_message = Message(role="user", content="test")
+        await deepseek_service.chat([test_message])
+        return {
+            "status": "healthy",
+            "metrics": deepseek_service.get_metrics()
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "metrics": deepseek_service.get_metrics()
+        }
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest):
+    try:
+        # 生成或使用现有的会话ID
+        conversation_id = request.conversation_id or str(datetime.now().timestamp())
+        
+        # 添加用户消息到历史
+        user_message = Message(role="user", content=request.message)
+        conversation_manager.add_message(conversation_id, user_message)
+        
+        # 获取对话历史
+        history = conversation_manager.get_history(conversation_id)
+        
+        # 调用 Deepseek API
+        ai_message = await deepseek_service.chat(history)
+        
+        # 添加AI回复到历史
+        ai_message_obj = Message(role="assistant", content=ai_message)
+        conversation_manager.add_message(conversation_id, ai_message_obj)
+        
+        return ChatResponse(
+            content=ai_message,
+            conversation_id=conversation_id,
+            metadata=request.metadata
+        )
+            
+    except DeepseekError as e:
+        logger.error(f"Deepseek API error: {str(e)}")
+        return ChatResponse(
+            content="抱歉，AI服务暂时不可用",
+            conversation_id=request.conversation_id or "",
+            success=False,
+            error=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Chat error: {str(e)}")
+        return ChatResponse(
+            content="抱歉，处理您的请求时出现错误",
+            conversation_id=request.conversation_id or "",
+            success=False,
+            error=str(e)
+        )
+
+@app.delete("/chat/{conversation_id}")
+async def clear_conversation(conversation_id: str):
+    conversation_manager.clear_history(conversation_id)
+    return {"status": "success", "message": "对话历史已清除"}
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await deepseek_service.close()
+
+if __name__ == "__main__":
+    import uvicorn
+    import asyncio
+    logger.info("启动FastAPI服务器...")
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="debug") 
