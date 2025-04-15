@@ -119,32 +119,78 @@ class _LearningPathPageState extends ConsumerState<LearningPathPage> {
               itemCount: state.conversations.length,
               itemBuilder: (context, index) {
                 final conversation = state.conversations[index];
-                final timestamp = conversation['timestamp'] as DateTime;
+                final timestamp = DateTime.parse(conversation['created_at']);
                 final isRecent = DateTime.now().difference(timestamp).inDays < 7;
                 
-                return ListTile(
-                  leading: Icon(
-                    Icons.history,
-                    color: isRecent ? AppColors.primary : Colors.grey,
-                  ),
-                  title: Text(
-                    conversation['title'] as String,
-                    style: TextStyle(
-                      color: isRecent ? AppColors.textPrimary : Colors.grey,
+                return Dismissible(
+                  key: Key(conversation['id']),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 16),
+                    color: Colors.red,
+                    child: const Icon(
+                      Icons.delete_outline,
+                      color: Colors.white,
                     ),
                   ),
-                  subtitle: Text(
-                    isRecent ? '7天内' : '30天内',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isRecent ? AppColors.textSecondary : Colors.grey,
-                    ),
-                  ),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/learning-path/${conversation['id']}');
+                  confirmDismiss: (direction) async {
+                    return await showDialog(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return AlertDialog(
+                          title: const Text('确认删除'),
+                          content: const Text('确定要删除这条学习路径吗？此操作不可恢复。'),
+                          actions: <Widget>[
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: Text('取消', style: TextStyle(color: AppColors.textSecondary)),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(true),
+                              child: Text('删除', style: TextStyle(color: Colors.red)),
+                            ),
+                          ],
+                        );
+                      },
+                    );
                   },
+                  onDismissed: (direction) {
+                    ref.read(learningPathProvider.notifier)
+                        .deletePath(conversation['id']);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('已删除学习路径'),
+                        backgroundColor: AppColors.primary,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: isRecent ? AppColors.primary.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
+                      child: Icon(Icons.route,
+                          color: isRecent ? AppColors.primary : Colors.grey),
+                    ),
+                    title: Text(
+                      conversation['title'] ?? '未命名路径',
+                      style: TextStyle(
+                        color: isRecent ? AppColors.textPrimary : Colors.grey,
+                      ),
+                    ),
+                    subtitle: Text(
+                      isRecent ? '最近7天' : '30天内',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isRecent ? AppColors.textSecondary : Colors.grey,
+                      ),
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.go('/learning-path/${conversation['id']}');
+                    },
+                  ),
                 );
               },
             ),
@@ -227,6 +273,7 @@ class _LearningPathPageState extends ConsumerState<LearningPathPage> {
                   contentPadding: EdgeInsets.symmetric(vertical: 12),
                 ),
                 maxLines: 1,
+                onSubmitted: _handleSendMessage,
               ),
             ),
           ),
@@ -240,17 +287,36 @@ class _LearningPathPageState extends ConsumerState<LearningPathPage> {
             ),
             child: IconButton(
               icon: const Icon(Icons.send, color: Colors.white),
-              onPressed: () {
-                final message = _inputController.text.trim();
-                if (message.isNotEmpty) {
-                  // TODO: 发送消息
-                  _inputController.clear();
-                }
-              },
+              onPressed: () => _handleSendMessage(_inputController.text),
             ),
           ),
         ],
       ),
     );
+  }
+
+  void _handleSendMessage(String message) async {
+    message = message.trim();
+    if (message.isEmpty) return;
+
+    try {
+      await ref.read(learningPathProvider.notifier).createNewConversation();
+      _inputController.clear();
+      
+      final state = ref.read(learningPathProvider);
+      if (mounted && state.conversations.isNotEmpty) {
+        context.go('/learning-path/${state.conversations.first['id']}');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('创建学习路径失败：$e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 }

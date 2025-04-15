@@ -80,9 +80,7 @@ class AssessmentPage extends StatelessWidget {
             description: '通过智能对话的方式，评估您的学习能力和知识掌握程度',
             color: Colors.purple,
             icon: Icons.chat,
-            onTap: () {
-              // TODO: 实现对话评估跳转
-            },
+            onTap: () => context.push('/assessment/dialogue'),
           ),
         ],
       ),

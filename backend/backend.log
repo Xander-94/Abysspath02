@@ -1,0 +1,150 @@
+2025-04-15 16:25:02,807 - main - INFO - 使用Deepseek API URL: https://api.deepseek.com/v1
+2025-04-15 16:25:02,808 - main - INFO - API Key前缀: sk-a4849...
+2025-04-15 16:25:04,620 - main - INFO - 使用Deepseek API URL: https://api.deepseek.com/v1
+2025-04-15 16:25:04,620 - main - INFO - API Key前缀: sk-a4849...
+2025-04-15 16:25:22,338 - main - INFO - 使用Deepseek API URL: https://api.deepseek.com/v1
+2025-04-15 16:25:22,338 - main - INFO - API Key前缀: sk-a4849...
+2025-04-15 16:25:28,259 - main - INFO - 收到聊天请求: 你好呀
+2025-04-15 16:25:28,259 - main - INFO - 对话历史: [Message(role='user', content='你好呀')]
+2025-04-15 16:25:28,500 - httpx - INFO - HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2025-04-15 16:25:32,572 - httpx - INFO - HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2025-04-15 16:25:36,627 - httpx - INFO - HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2025-04-15 16:25:36,629 - main - ERROR - 聊天错误: RetryError[<Future at 0x1edccc278f0 state=finished raised DeepseekError>]
+Traceback (most recent call last):
+  File "E:\kaifa\Project\Flutter\abysspath02\backend\services\deepseek_service.py", line 93, in chat
+    response.raise_for_status()
+  File "D:\huanj\Python312\Lib\site-packages\httpx\_models.py", line 761, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '401 Unauthorized' for url 'https://api.deepseek.com/v1/chat/completions'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\huanj\Python312\Lib\site-packages\tenacity\asyncio\__init__.py", line 114, in __call__
+    result = await fn(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\kaifa\Project\Flutter\abysspath02\backend\services\deepseek_service.py", line 109, in chat
+    raise DeepseekError(f"API请求失败: {str(e)}", e.response.status_code)
+services.deepseek_service.DeepseekError: API请求失败: Client error '401 Unauthorized' for url 'https://api.deepseek.com/v1/chat/completions'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\kaifa\Project\Flutter\abysspath02\backend\main.py", line 178, in chat
+    ai_message = await deepseek_service.chat(history)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\huanj\Python312\Lib\site-packages\tenacity\asyncio\__init__.py", line 189, in async_wrapped
+    return await copy(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\huanj\Python312\Lib\site-packages\tenacity\asyncio\__init__.py", line 111, in __call__
+    do = await self.iter(retry_state=retry_state)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\huanj\Python312\Lib\site-packages\tenacity\asyncio\__init__.py", line 153, in iter
+    result = await action(retry_state)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\huanj\Python312\Lib\site-packages\tenacity\_utils.py", line 99, in inner
+    return call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\huanj\Python312\Lib\site-packages\tenacity\__init__.py", line 419, in exc_check
+    raise retry_exc from fut.exception()
+tenacity.RetryError: RetryError[<Future at 0x1edccc278f0 state=finished raised DeepseekError>]
+2025-04-15 16:26:19,773 - main - INFO - 收到聊天请求: hello
+2025-04-15 16:26:19,773 - main - INFO - 对话历史: [Message(role='user', content='你好呀'), Message(role='user', content='hello')]
+2025-04-15 16:26:19,922 - httpx - INFO - HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2025-04-15 16:26:23,978 - httpx - INFO - HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2025-04-15 16:26:28,047 - httpx - INFO - HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2025-04-15 16:26:28,048 - main - ERROR - 聊天错误: RetryError[<Future at 0x1edccc47050 state=finished raised DeepseekError>]
+Traceback (most recent call last):
+  File "E:\kaifa\Project\Flutter\abysspath02\backend\services\deepseek_service.py", line 93, in chat
+    response.raise_for_status()
+  File "D:\huanj\Python312\Lib\site-packages\httpx\_models.py", line 761, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '401 Unauthorized' for url 'https://api.deepseek.com/v1/chat/completions'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\huanj\Python312\Lib\site-packages\tenacity\asyncio\__init__.py", line 114, in __call__
+    result = await fn(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\kaifa\Project\Flutter\abysspath02\backend\services\deepseek_service.py", line 109, in chat
+    raise DeepseekError(f"API请求失败: {str(e)}", e.response.status_code)
+services.deepseek_service.DeepseekError: API请求失败: Client error '401 Unauthorized' for url 'https://api.deepseek.com/v1/chat/completions'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\kaifa\Project\Flutter\abysspath02\backend\main.py", line 178, in chat
+    ai_message = await deepseek_service.chat(history)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\huanj\Python312\Lib\site-packages\tenacity\asyncio\__init__.py", line 189, in async_wrapped
+    return await copy(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\huanj\Python312\Lib\site-packages\tenacity\asyncio\__init__.py", line 111, in __call__
+    do = await self.iter(retry_state=retry_state)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\huanj\Python312\Lib\site-packages\tenacity\asyncio\__init__.py", line 153, in iter
+    result = await action(retry_state)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\huanj\Python312\Lib\site-packages\tenacity\_utils.py", line 99, in inner
+    return call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\huanj\Python312\Lib\site-packages\tenacity\__init__.py", line 419, in exc_check
+    raise retry_exc from fut.exception()
+tenacity.RetryError: RetryError[<Future at 0x1edccc47050 state=finished raised DeepseekError>]
+2025-04-15 16:28:17,783 - main - INFO - 收到聊天请求: 你好
+2025-04-15 16:28:17,783 - main - INFO - 对话历史: [Message(role='user', content='你好')]
+2025-04-15 16:28:18,027 - httpx - INFO - HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2025-04-15 16:28:22,104 - httpx - INFO - HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2025-04-15 16:28:26,175 - httpx - INFO - HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2025-04-15 16:28:26,176 - main - ERROR - 聊天错误: RetryError[<Future at 0x1edca4166f0 state=finished raised DeepseekError>]
+Traceback (most recent call last):
+  File "E:\kaifa\Project\Flutter\abysspath02\backend\services\deepseek_service.py", line 93, in chat
+    response.raise_for_status()
+  File "D:\huanj\Python312\Lib\site-packages\httpx\_models.py", line 761, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '401 Unauthorized' for url 'https://api.deepseek.com/v1/chat/completions'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\huanj\Python312\Lib\site-packages\tenacity\asyncio\__init__.py", line 114, in __call__
+    result = await fn(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\kaifa\Project\Flutter\abysspath02\backend\services\deepseek_service.py", line 109, in chat
+    raise DeepseekError(f"API请求失败: {str(e)}", e.response.status_code)
+services.deepseek_service.DeepseekError: API请求失败: Client error '401 Unauthorized' for url 'https://api.deepseek.com/v1/chat/completions'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\kaifa\Project\Flutter\abysspath02\backend\main.py", line 178, in chat
+    ai_message = await deepseek_service.chat(history)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\huanj\Python312\Lib\site-packages\tenacity\asyncio\__init__.py", line 189, in async_wrapped
+    return await copy(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\huanj\Python312\Lib\site-packages\tenacity\asyncio\__init__.py", line 111, in __call__
+    do = await self.iter(retry_state=retry_state)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\huanj\Python312\Lib\site-packages\tenacity\asyncio\__init__.py", line 153, in iter
+    result = await action(retry_state)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\huanj\Python312\Lib\site-packages\tenacity\_utils.py", line 99, in inner
+    return call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\huanj\Python312\Lib\site-packages\tenacity\__init__.py", line 419, in exc_check
+    raise retry_exc from fut.exception()
+tenacity.RetryError: RetryError[<Future at 0x1edca4166f0 state=finished raised DeepseekError>]
+2025-04-15 16:30:19,247 - main - INFO - 使用Deepseek API URL: https://api.deepseek.com/v1
+2025-04-15 16:30:19,248 - main - INFO - API Key前缀: sk-a4849...
+2025-04-15 16:32:49,456 - main - INFO - 使用Deepseek API URL: https://api.deepseek.com/v1
+2025-04-15 16:32:49,456 - main - INFO - API Key前缀: sk-a4849...
+2025-04-15 16:37:02,565 - main - INFO - 使用Deepseek API URL: https://api.deepseek.com/v1
+2025-04-15 16:37:02,565 - main - INFO - API Key前缀: sk-a4849...

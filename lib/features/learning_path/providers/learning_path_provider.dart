@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../services/learning_path_service.dart';
 
 class LearningPathState {
   final bool isLoading;
@@ -25,35 +26,22 @@ class LearningPathState {
 }
 
 class LearningPathNotifier extends StateNotifier<LearningPathState> {
-  LearningPathNotifier() : super(const LearningPathState());
+  final LearningPathService _service;
+
+  LearningPathNotifier(this._service) : super(const LearningPathState());
 
   Future<void> loadConversations() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      // TODO: 从数据库加载对话历史
-      await Future.delayed(const Duration(seconds: 1)); // 模拟加载
+      final conversations = await _service.getHistoryPaths();
       state = state.copyWith(
         isLoading: false,
-        conversations: [
-          {
-            'id': '1',
-            'title': 'Flutter基础入门',
-            'lastMessage': '如何开始学习Flutter？',
-            'timestamp': DateTime.now().subtract(const Duration(days: 1)),
-          },
-          {
-            'id': '2',
-            'title': 'Dart语言精通',
-            'lastMessage': 'Dart的异步编程',
-            'timestamp': DateTime.now().subtract(const Duration(days: 3)),
-          },
-          // 添加更多示例对话
-        ],
+        conversations: conversations,
       );
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        error: '加载对话历史失败：$e',
+        error: e.toString(),
       );
     }
   }
@@ -61,27 +49,40 @@ class LearningPathNotifier extends StateNotifier<LearningPathState> {
   Future<void> createNewConversation() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      // TODO: 创建新对话
-      await Future.delayed(const Duration(milliseconds: 500)); // 模拟创建
-      final newConversation = {
-        'id': DateTime.now().millisecondsSinceEpoch.toString(),
-        'title': '新的学习路径',
-        'lastMessage': '开始新的学习之旅',
-        'timestamp': DateTime.now(),
-      };
+      final newPath = await _service.createPath();
       state = state.copyWith(
         isLoading: false,
-        conversations: [newConversation, ...state.conversations],
+        conversations: [newPath, ...state.conversations],
       );
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        error: '创建新对话失败：$e',
+        error: e.toString(),
+      );
+    }
+  }
+
+  Future<void> deletePath(String pathId) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      await _service.deletePath(pathId);
+      final updatedConversations = state.conversations
+          .where((conv) => conv['id'] != pathId)
+          .toList();
+      
+      state = state.copyWith(
+        isLoading: false,
+        conversations: updatedConversations,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString(),
       );
     }
   }
 }
 
 final learningPathProvider = StateNotifierProvider<LearningPathNotifier, LearningPathState>((ref) {
-  return LearningPathNotifier();
+  return LearningPathNotifier(LearningPathService());
 });

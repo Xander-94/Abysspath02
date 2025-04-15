@@ -11,16 +11,32 @@ from routers import chat
 from datetime import datetime
 import json
 from services.deepseek_service import deepseek_service, DeepseekError
+from fastapi.encoders import jsonable_encoder
+import sys
+from pathlib import Path
 
 # 配置日志
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
 # 加载环境变量
-load_dotenv()
+env_path = Path(__file__).parent / '.env'
+if not env_path.exists():
+    logger.error(f"环境变量文件不存在: {env_path}")
+    sys.exit(1)
+
+load_dotenv(env_path)
+logger.info(f"已加载环境变量文件: {env_path}")
+
+# 验证必要的环境变量
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+if not DEEPSEEK_API_KEY:
+    logger.error("DEEPSEEK_API_KEY环境变量未设置")
+    sys.exit(1)
+logger.info(f"DEEPSEEK_API_KEY: {DEEPSEEK_API_KEY[:8]}...")
 
 app = FastAPI(
     title="AbyssPath AI Service",
@@ -28,7 +44,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# 配置CORS
+# 配置CORS和响应编码
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # 在生产环境中需要限制
@@ -38,12 +54,7 @@ app.add_middleware(
 )
 
 # Deepseek配置
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
-
-if not DEEPSEEK_API_KEY:
-    logger.error("DEEPSEEK_API_KEY未设置")
-    raise ValueError("DEEPSEEK_API_KEY必须设置")
 
 logger.info(f"使用Deepseek API URL: {DEEPSEEK_BASE_URL}")
 logger.info(f"API Key前缀: {DEEPSEEK_API_KEY[:8]}...")
@@ -115,6 +126,17 @@ class ChatResponse(BaseModel):
     error: Optional[str] = None
     metadata: Optional[Dict] = None
 
+# 自定义JSON响应类，确保正确的编码
+class CustomJSONResponse(JSONResponse):
+    def render(self, content: any) -> bytes:
+        return json.dumps(
+            jsonable_encoder(content),
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":")
+        ).encode("utf-8")
+
 # 注册路由
 app.include_router(chat.router)
 
@@ -146,47 +168,49 @@ async def health_check():
         }
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest) -> CustomJSONResponse:
     try:
-        # 生成或使用现有的会话ID
+        logger.info(f"收到聊天请求: {request.message}")
         conversation_id = request.conversation_id or str(datetime.now().timestamp())
         
-        # 添加用户消息到历史
+        # 创建用户消息
         user_message = Message(role="user", content=request.message)
         conversation_manager.add_message(conversation_id, user_message)
         
         # 获取对话历史
         history = conversation_manager.get_history(conversation_id)
+        logger.debug(f"对话历史: {[msg.dict() for msg in history]}")
         
-        # 调用 Deepseek API
-        ai_message = await deepseek_service.chat(history)
-        
-        # 添加AI回复到历史
-        ai_message_obj = Message(role="assistant", content=ai_message)
-        conversation_manager.add_message(conversation_id, ai_message_obj)
-        
-        return ChatResponse(
-            content=ai_message,
-            conversation_id=conversation_id,
-            metadata=request.metadata
-        )
+        # 调用 AI 服务
+        try:
+            ai_message = await deepseek_service.chat(history)
+            ai_message_obj = Message(role="assistant", content=ai_message)
+            conversation_manager.add_message(conversation_id, ai_message_obj)
             
-    except DeepseekError as e:
-        logger.error(f"Deepseek API error: {str(e)}")
-        return ChatResponse(
-            content="抱歉，AI服务暂时不可用",
-            conversation_id=request.conversation_id or "",
-            success=False,
-            error=str(e)
-        )
+            return CustomJSONResponse(content={
+                "content": ai_message,
+                "conversation_id": conversation_id,
+                "success": True,
+                "metadata": request.metadata
+            })
+        except DeepseekError as e:
+            logger.error(f"Deepseek服务错误: {str(e)}")
+            return CustomJSONResponse(content={
+                "content": "抱歉，AI服务暂时不可用",
+                "conversation_id": conversation_id,
+                "success": False,
+                "error": f"AI服务错误: {str(e)}"
+            })
+            
     except Exception as e:
-        logger.error(f"Chat error: {str(e)}")
-        return ChatResponse(
-            content="抱歉，处理您的请求时出现错误",
-            conversation_id=request.conversation_id or "",
-            success=False,
-            error=str(e)
-        )
+        error_msg = f"处理请求时出错: {str(e)}"
+        logger.error(error_msg)
+        return CustomJSONResponse(content={
+            "content": "抱歉，服务器处理请求时出现错误",
+            "conversation_id": request.conversation_id or "",
+            "success": False,
+            "error": error_msg
+        })
 
 @app.delete("/chat/{conversation_id}")
 async def clear_conversation(conversation_id: str):

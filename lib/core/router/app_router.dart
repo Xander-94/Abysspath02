@@ -6,6 +6,7 @@ import '../../features/auth/pages/login_page.dart';
 import '../../features/auth/pages/register_page.dart';
 import '../../features/auth/pages/forgot_password_page.dart';
 import '../../features/assessment/pages/assessment_page.dart';
+import '../../features/assessment/pages/dialogue_assessment_page.dart';
 import '../../features/learning_path/pages/learning_path_page.dart';
 import '../../features/learning_path/pages/learning_path_detail_page.dart';
 import '../../features/profile/pages/profile_page.dart';
@@ -113,6 +114,25 @@ final routerProvider = Provider<GoRouter>((ref) {
             return FadeTransition(opacity: animation, child: child);
           },
         ),
+        routes: [
+          GoRoute(
+            path: 'dialogue',
+            builder: (context, state) => const DialogueAssessmentPage(),
+            pageBuilder: (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const DialogueAssessmentPage(),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(1, 0),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                );
+              },
+            ),
+          ),
+        ],
       ),
       
       // 学习路径路由
