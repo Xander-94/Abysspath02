@@ -143,30 +143,31 @@ class DialogueAssessmentNotifier extends StateNotifier<DialogueAssessmentState> 
     state = state.copyWith(isLoading: true, error: null);
     try {
       final result = await _service.getAssessmentResult(assessmentId);
-      final interactions = List<Map<String, dynamic>>.from(result['interactions'] ?? []);
+      final interactions = List<Map<String, dynamic>>.from(result['assessment_interactions'] ?? []);
       
       final messages = interactions.expand((interaction) => [
         {
           'id': '${interaction['id']}_user',
-          'content': interaction['userResponse'],
+          'content': interaction['user_message'],
           'isUser': true,
-          'timestamp': DateTime.parse(interaction['timestamp']),
+          'timestamp': DateTime.parse(interaction['created_at']),
         },
         {
           'id': '${interaction['id']}_ai',
-          'content': interaction['aiResponse'],
+          'content': interaction['ai_response'],
           'isUser': false,
-          'timestamp': DateTime.parse(interaction['timestamp']),
+          'timestamp': DateTime.parse(interaction['created_at']),
         },
-      ]).toList();
+      ]).toList()..sort((a, b) => a['timestamp'].compareTo(b['timestamp']));
 
       state = state.copyWith(
         isLoading: false,
         currentAssessmentId: assessmentId,
         messages: messages,
-        assessmentResult: result['userProfile'],
+        assessmentResult: result,  // 保存完整的评估记录
       );
     } catch (e) {
+      print('加载对话失败: $e');  // 添加错误日志
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),

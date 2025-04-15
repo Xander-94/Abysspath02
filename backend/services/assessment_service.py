@@ -2,6 +2,7 @@ from typing import Dict, Any, List
 from datetime import datetime
 import uuid
 from models.assessment import AssessmentInteraction, AssessmentHistory
+from models.chat import Message, ChatResponse
 from services.deepseek_service import DeepseekService
 from database import get_supabase_client
 import logging
@@ -31,14 +32,22 @@ class AssessmentService:
         """保存对话交互记录"""
         try:
             # 获取AI回复
-            ai_response = await self.deepseek.chat_for_assessment(user_message)
+            response = await self.deepseek.chat(message=user_message, is_assessment=True)
+            
+            if not response.success:
+                return {
+                    "interaction": None,
+                    "success": False,
+                    "error": response.error,
+                    "is_complete": False
+                }
             
             # 保存交互记录
             interaction_data = {
                 "id": str(uuid.uuid4()),
                 "assessment_id": assessment_id,
                 "user_message": user_message,
-                "ai_response": ai_response,
+                "ai_response": response.content,
                 "created_at": datetime.utcnow().isoformat()
             }
             
@@ -49,22 +58,20 @@ class AssessmentService:
                 "updated_at": datetime.utcnow().isoformat()
             }).eq("id", assessment_id).execute()
             
-            # 分析AI回复，判断是否需要完成评估
-            is_complete = "总结" in ai_response or "评估完成" in ai_response
-            
-            if is_complete:
-                # 提取总结信息
-                summary = ai_response
-                # 更新评估状态
-                await self.complete_assessment(assessment_id, summary)
-            
             return {
                 "interaction": result.data[0],
-                "is_complete": is_complete
+                "success": True,
+                "error": None,
+                "is_complete": False  # 可以根据AI回复内容判断是否完成评估
             }
         except Exception as e:
-            logger.error(f"保存对话交互记录失败: {str(e)}")
-            raise Exception(f"保存对话失败: {str(e)}")
+            logger.error(f"保存对话交互失败: {str(e)}")
+            return {
+                "interaction": None,
+                "success": False,
+                "error": str(e),
+                "is_complete": False
+            }
 
     async def get_assessment_history(self, user_id: str) -> List[Dict[str, Any]]:
         """获取用户的评估历史记录"""
@@ -73,16 +80,33 @@ class AssessmentService:
 
     async def get_assessment_detail(self, assessment_id: str) -> Dict[str, Any]:
         """获取评估详情，包括对话记录"""
-        # 获取评估记录
-        assessment = await self.supabase.table("assessment_history").select("*").eq("id", assessment_id).single().execute()
-        
-        # 获取对话记录
-        interactions = await self.supabase.table("assessment_interactions").select("*").eq("assessment_id", assessment_id).execute()
-        
-        return {
-            "assessment": assessment.data,
-            "interactions": interactions.data
-        }
+        try:
+            # 获取评估记录，使用外键关联获取对话记录
+            result = await self.supabase.table("assessment_history").select(
+                "*",
+                count="exact"
+            ).eq("id", assessment_id).execute()
+            
+            if not result.data:
+                return {"error": "评估记录不存在"}
+                
+            assessment = result.data[0]
+            
+            # 获取对话记录并按时间排序
+            interactions = await self.supabase.table("assessment_interactions").select(
+                "*"
+            ).eq("assessment_id", assessment_id).order(
+                "created_at", desc=False
+            ).execute()
+            
+            # 将对话记录添加到评估记录中
+            assessment["assessment_interactions"] = interactions.data if interactions.data else []
+            
+            return assessment
+            
+        except Exception as e:
+            logger.error(f"获取评估详情失败: {str(e)}")
+            return {"error": f"获取评估详情失败: {str(e)}"}
 
     async def complete_assessment(self, assessment_id: str, summary: str = None) -> Dict[str, Any]:
         """完成评估"""

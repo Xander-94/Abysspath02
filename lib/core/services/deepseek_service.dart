@@ -8,16 +8,17 @@ class DeepseekService {
   static Future<String> sendMessage(String message, {String role = 'user'}) async {
     try {
       print('发送消息到AI服务: $message');
-      print('使用API地址: $_baseUrl/chat');
+      print('使用API地址: $_baseUrl/api/chat/');
       
       final response = await http.post(
-        Uri.parse('$_baseUrl/chat'),
+        Uri.parse('$_baseUrl/api/chat/'),
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
           'Accept': 'application/json; charset=utf-8'
         },
         body: utf8.encode(jsonEncode({
           'message': message,
+          'conversation_id': 'string',
           'metadata': {'role': role}
         })),
       );
@@ -27,6 +28,9 @@ class DeepseekService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
+        if (data['success'] == false) {
+          throw data['error'] ?? '请求失败';
+        }
         return data['content'] as String;
       }
       throw '请求失败：${response.statusCode} - ${utf8.decode(response.bodyBytes)}';

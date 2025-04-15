@@ -2,7 +2,7 @@ import httpx
 import os
 import logging
 import json
-from typing import List, Optional, AsyncGenerator, Dict, Any
+from typing import List, Optional, AsyncGenerator, Dict
 from datetime import datetime
 from tenacity import retry, stop_after_attempt, wait_exponential, before_log, after_log
 from models.chat import Message, ChatRequest, ChatResponse
@@ -20,39 +20,70 @@ logger.info(f"尝试加载环境变量文件: {env_path}")
 
 class DeepseekConfig:
     def __init__(self):
-        env_path = Path(__file__).parent.parent / '.env'
-        if not env_path.exists():
-            raise ValueError(f"环境变量文件不存在: {env_path}")
-        load_dotenv(env_path)
-        
-        self.api_key = os.getenv('DEEPSEEK_API_KEY')
+        self.api_key = os.getenv("DEEPSEEK_API_KEY")
         if not self.api_key:
-            raise ValueError('DEEPSEEK_API_KEY 环境变量未设置')
-        
-        self.base_url = os.getenv('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1')
+            logger.error(f"DEEPSEEK_API_KEY环境变量未设置，请检查 {env_path} 文件")
+            raise ValueError(f"DEEPSEEK_API_KEY环境变量未设置，请检查 {env_path} 文件")
+            
+        self.base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
         self.model = "deepseek-chat"
         self.temperature = 0.7
         self.max_tokens = 1000
         self.timeout = 30
-        self.system_prompt = os.getenv('SYSTEM_PROMPT', '你是一个专业的学习能力评估助手，负责通过对话评估用户的学习能力、兴趣和目标。')
-        self.assessment_prompt = """
-你是一个专业的学习能力评估助手。你的任务是通过对话评估用户的学习能力、兴趣和目标。请遵循以下规则:
+        self.system_prompt = os.getenv("SYSTEM_PROMPT", "你是一个专业的AI助手")
+        self.assessment_system_prompt = """你是一个专业的学习能力评估助手，负责通过对话评估用户的学习能力、兴趣和目标。
+评估维度包括：
+1. 学习方法和习惯
+2. 知识掌握和记忆能力
+3. 学习动机和目标
+4. 时间管理能力
+5. 问题解决能力
+6. 自我反思和调整能力
 
-1. 每次对话最多问5个问题
-2. 问题应该循序渐进,由浅入深
-3. 根据用户回答动态调整问题难度
-4. 关注用户的学习动机、方法和习惯
-5. 收集用户的兴趣爱好和职业规划
-6. 评估用户的知识储备和学习瓶颈
+请通过提问和交谈，了解用户的具体情况，并在合适的时机给出以下内容：
+1. 对用户当前学习状态的分析
+2. 个性化的学习建议
+3. 可能存在的问题和改进方向
+4. 具体的行动建议"""
+        
+        self.learning_path_system_prompt = """你是一个专业的学习路径规划助手，负责根据用户的学习目标和需求，生成个性化的学习路径。
 
-当你判断已经收集到足够信息时,请给出评估总结,包含以下方面:
-- 学习能力评分(1-100)
-- 优势和不足
-- 适合的学习方向
-- 改进建议
+请按照以下格式生成JSON格式的学习路径：
+{
+  "title": "学习路径标题",
+  "description": "路径描述",
+  "estimated_duration": "预计完成时间",
+  "difficulty_level": "难度级别(1-5)",
+  "prerequisites": ["前置要求1", "前置要求2"],
+  "milestones": [
+    {
+      "title": "里程碑1标题",
+      "description": "里程碑描述",
+      "duration": "预计时间",
+      "resources": [
+        {
+          "type": "video/article/book/practice",
+          "title": "资源标题",
+          "description": "资源描述",
+          "url": "资源链接（如有）",
+          "estimated_time": "预计学习时间"
+        }
+      ],
+      "learning_objectives": ["学习目标1", "学习目标2"],
+      "assessment_criteria": ["评估标准1", "评估标准2"]
+    }
+  ],
+  "success_metrics": ["成功指标1", "成功指标2"],
+  "next_steps": ["后续建议1", "后续建议2"]
+}
 
-总结时请在开头加上"[评估完成]"标记。
-"""
+在生成路径时，请注意：
+1. 根据用户的基础水平调整内容难度
+2. 提供具体、可操作的学习资源
+3. 设置合理的时间预期
+4. 添加清晰的学习目标和评估标准
+5. 考虑实践项目和动手机会
+6. 推荐优质的学习资源和工具"""
         
         logger.info(f"DeepseekConfig 初始化完成:")
         logger.info(f"  - API Key: {self.api_key[:8]}...")
@@ -100,16 +131,15 @@ class DeepseekService:
     def __init__(self):
         self.config = DeepseekConfig()
         self.client = httpx.AsyncClient(
-            base_url=self.config.base_url,
+            timeout=self.config.timeout,
             headers={
                 "Authorization": f"Bearer {self.config.api_key}",
                 "Content-Type": "application/json"
-            },
-            timeout=30.0
+            }
         )
         self.metrics = DeepseekMetrics()
         self._cache = {}
-        logger.info(f"DeepseekService 初始化完成, API Key: {self.config.api_key[:8]}...")
+        logger.info("DeepseekService 初始化完成")
     
     @retry(
         stop=stop_after_attempt(3),
@@ -117,42 +147,97 @@ class DeepseekService:
         before=before_log(logger, logging.DEBUG),
         after=after_log(logger, logging.DEBUG)
     )
-    async def chat(self, messages: List[Dict[str, str]]) -> str:
-        """通用对话接口"""
-        start_time = time.time()
+    async def chat(self, message: str, is_assessment: bool = False, is_learning_path: bool = False) -> ChatResponse:
+        """发送消息到Deepseek API"""
         try:
-            response = await self.client.post(
-                "/chat/completions",
-                json={
-                    "model": "deepseek-chat",
-                    "messages": [{"role": "system", "content": self.config.system_prompt}] + messages
-                }
+            # 根据不同场景选择系统提示词
+            system_prompt = (
+                self.config.assessment_system_prompt if is_assessment
+                else self.config.learning_path_system_prompt if is_learning_path
+                else self.config.system_prompt
             )
-            response.raise_for_status()
-            result = response.json()
+            
+            # 构建API消息列表
+            api_messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message}
+            ]
+            
+            start_time = time.time()
+            
+            # 构建请求体
+            api_request = {
+                "messages": api_messages,
+                "model": self.config.model,
+                "temperature": self.config.temperature,
+                "max_tokens": self.config.max_tokens
+            }
+            
+            logger.debug(f"API请求配置: {json.dumps(api_request, ensure_ascii=False, indent=2)}")
+            logger.info(f"发送请求到 {self.config.base_url}/chat/completions")
+            
+            async with httpx.AsyncClient(timeout=self.config.timeout) as client:
+                response = await client.post(
+                    f"{self.config.base_url}/chat/completions",
+                    json=api_request,
+                    headers={
+                        "Authorization": f"Bearer {self.config.api_key}",
+                        "Content-Type": "application/json"
+                    }
+                )
+            
+            logger.debug(f"API响应头: {dict(response.headers)}")
+            logger.info(f"API响应状态码: {response.status_code}")
+            
+            if response.status_code != 200:
+                error_msg = f"API请求失败: 状态码={response.status_code}, 响应={response.text}"
+                logger.error(error_msg)
+                return ChatResponse(
+                    content="抱歉，服务器处理请求时出现错误",
+                    success=False,
+                    error=error_msg
+                )
+            
+            try:
+                result = response.json()
+            except json.JSONDecodeError as e:
+                error_msg = f"响应解析失败: {str(e)}\n响应内容: {response.text}"
+                logger.error(error_msg)
+                return ChatResponse(
+                    content="抱歉，服务器处理请求时出现错误",
+                    success=False,
+                    error=error_msg
+                )
+            
+            if "choices" not in result or not result["choices"]:
+                error_msg = f"API响应格式错误: {json.dumps(result, ensure_ascii=False)}"
+                logger.error(error_msg)
+                return ChatResponse(
+                    content="抱歉，服务器处理请求时出现错误",
+                    success=False,
+                    error=error_msg
+                )
+                
+            content = result["choices"][0]["message"]["content"]
             
             # 记录成功请求
             self.metrics.record_request(True, time.time() - start_time)
-            return result["choices"][0]["message"]["content"]
+            return ChatResponse(
+                content=content,
+                success=True,
+                error=None
+            )
             
-        except httpx.HTTPStatusError as e:
-            error_msg = f"API请求失败: 状态码={e.response.status_code}, 响应={e.response.text}"
-            logger.error(error_msg)
-            self.metrics.record_request(False, time.time() - start_time)
-            self.metrics.record_error(error_msg)
-            raise DeepseekError(error_msg, e.response.status_code)
-        except httpx.RequestError as e:
-            error_msg = f"请求错误: {str(e)}"
-            logger.error(error_msg)
-            self.metrics.record_request(False, time.time() - start_time)
-            self.metrics.record_error(error_msg)
-            raise DeepseekError(error_msg)
         except Exception as e:
             error_msg = f"处理请求时出错: {str(e)}"
             logger.error(error_msg)
             self.metrics.record_request(False, time.time() - start_time)
             self.metrics.record_error(error_msg)
-            raise DeepseekError(error_msg)
+            return ChatResponse(
+                content="抱歉，服务器处理请求时出现错误",
+                success=False,
+                error=error_msg
+            )
     
     def _get_cache_key(self, messages: List[Message]) -> str:
         return str([(msg.role, msg.content) for msg in messages])
@@ -162,21 +247,6 @@ class DeepseekService:
     
     async def close(self):
         await self.client.aclose()
-
-    async def chat_for_assessment(self, user_message: str, history: List[Dict[str, str]] = None) -> str:
-        """评估对话专用接口"""
-        try:
-            messages = [{"role": "system", "content": self.config.assessment_prompt}]
-            if history:
-                messages.extend(history)
-            messages.append({"role": "user", "content": user_message})
-            
-            response = await self.chat(messages)
-            logger.debug(f"评估对话响应: {response[:100]}...")
-            return response
-        except Exception as e:
-            logger.error(f"评估对话失败: {str(e)}")
-            raise
 
 # 全局服务实例
 deepseek_service = DeepseekService()

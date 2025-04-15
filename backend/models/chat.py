@@ -1,17 +1,25 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 class Message(BaseModel):
     role: str = Field(..., description="消息角色：system/user/assistant")
     content: str = Field(..., description="消息内容")
 
+    def dict(self) -> Dict[str, str]:
+        """转换为API请求格式"""
+        return {
+            "role": self.role,
+            "content": self.content
+        }
+
 class ChatRequest(BaseModel):
-    messages: List[Message] = Field(..., description="对话消息列表")
-    model: str = Field(default="deepseek-chat", description="使用的模型")
-    temperature: float = Field(default=0.7, ge=0.0, le=1.0, description="温度参数")
-    max_tokens: int = Field(default=2000, gt=0, description="最大token数")
-    stream: bool = Field(default=False, description="是否使用流式响应")
+    message: str = Field(..., description="用户消息")
+    conversation_id: Optional[str] = Field(default="string", description="会话ID")
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="元数据")
 
 class ChatResponse(BaseModel):
     content: str = Field(..., description="AI回复内容")
-    usage: Optional[dict] = Field(None, description="token使用情况") 
+    conversation_id: str = Field(default="string", description="会话ID")
+    success: bool = Field(default=True, description="是否成功")
+    error: Optional[str] = Field(default=None, description="错误信息")
+    usage: Optional[Dict[str, Any]] = Field(default=None, description="token使用情况") 

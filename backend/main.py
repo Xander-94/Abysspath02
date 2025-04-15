@@ -7,7 +7,7 @@ import httpx
 import os
 import logging
 from dotenv import load_dotenv
-from routers import chat, assessment
+from routers import chat, assessment, learning_path
 from datetime import datetime
 import json
 from services.deepseek_service import deepseek_service, DeepseekError
@@ -140,6 +140,7 @@ class CustomJSONResponse(JSONResponse):
 # 注册路由
 app.include_router(chat.router)
 app.include_router(assessment.router)
+app.include_router(learning_path.router)
 
 @app.get("/")
 async def root():
@@ -150,28 +151,11 @@ async def get_metrics():
     """获取Deepseek服务监控指标"""
     return deepseek_service.get_metrics()
 
-@app.get("/health")
-async def health_check():
-    """健康检查端点"""
+@app.post("/chat_backup", response_model=ChatResponse)  # 备用路由
+async def chat_backup(request: ChatRequest) -> CustomJSONResponse:
+    """备用的聊天路由，保持原有逻辑"""
     try:
-        # 检查API连接
-        test_message = Message(role="user", content="test")
-        await deepseek_service.chat([test_message])
-        return {
-            "status": "healthy",
-            "metrics": deepseek_service.get_metrics()
-        }
-    except Exception as e:
-        return {
-            "status": "unhealthy",
-            "error": str(e),
-            "metrics": deepseek_service.get_metrics()
-        }
-
-@app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> CustomJSONResponse:
-    try:
-        logger.info(f"收到聊天请求: {request.message}")
+        logger.info(f"收到备用聊天请求: {request.message}")
         conversation_id = request.conversation_id or str(datetime.now().timestamp())
         
         # 创建用户消息
@@ -184,7 +168,7 @@ async def chat(request: ChatRequest) -> CustomJSONResponse:
         
         # 调用 AI 服务
         try:
-            ai_message = await deepseek_service.chat(history)
+            ai_message = await deepseek_service.chat(message=request.message)
             ai_message_obj = Message(role="assistant", content=ai_message)
             conversation_manager.add_message(conversation_id, ai_message_obj)
             
@@ -213,13 +197,33 @@ async def chat(request: ChatRequest) -> CustomJSONResponse:
             "error": error_msg
         })
 
-@app.delete("/chat/{conversation_id}")
-async def clear_conversation(conversation_id: str):
+@app.delete("/chat_backup/{conversation_id}")  # 备用的清除对话历史路由
+async def clear_conversation_backup(conversation_id: str):
+    """备用的清除对话历史路由"""
     conversation_manager.clear_history(conversation_id)
     return {"status": "success", "message": "对话历史已清除"}
 
+@app.get("/health")
+async def health_check():
+    """健康检查端点"""
+    try:
+        # 检查API连接
+        test_message = "test"
+        await deepseek_service.chat(message=test_message)
+        return {
+            "status": "healthy",
+            "metrics": deepseek_service.get_metrics()
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "metrics": deepseek_service.get_metrics()
+        }
+
 @app.on_event("shutdown")
 async def shutdown_event():
+    """应用关闭时的清理工作"""
     await deepseek_service.close()
 
 if __name__ == "__main__":

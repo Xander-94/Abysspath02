@@ -45,9 +45,9 @@ class _LearningPathPageState extends ConsumerState<LearningPathPage> {
         IconButton(
           icon: const Icon(Icons.add_circle_outline),
           onPressed: () async {
-            await ref.read(learningPathProvider.notifier).createNewConversation();
-            if (mounted) {
-              _scaffoldKey.currentState?.openEndDrawer();
+            final newPath = await ref.read(learningPathProvider.notifier).createNewConversation();
+            if (mounted && newPath != null) {
+              await ref.read(learningPathProvider.notifier).selectPath(newPath['id']);
             }
           },
         ),
@@ -188,7 +188,7 @@ class _LearningPathPageState extends ConsumerState<LearningPathPage> {
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () {
                       Navigator.pop(context);
-                      context.go('/learning-path/${conversation['id']}');
+                      ref.read(learningPathProvider.notifier).selectPath(conversation['id']);
                     },
                   ),
                 );
@@ -202,40 +202,95 @@ class _LearningPathPageState extends ConsumerState<LearningPathPage> {
 
   // 对话面板
   Widget _buildChatPanel() {
+    final state = ref.watch(learningPathProvider);
+    
+    if (state.currentPathId == null || state.messages.isEmpty) {
+      return Container(
+        color: const Color(0xFFF5F5F5),
+        child: ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: 1,
+          itemBuilder: (context, index) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 40),
+                CircleAvatar(
+                  radius: 40,
+                  backgroundColor: AppColors.primary,
+                  child: const Icon(Icons.route, size: 40, color: Colors.white),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '嗨！我是你的学习路径助手',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '我可以帮你规划学习路径、跟踪学习进度',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: AppColors.textSecondary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    }
+
     return Container(
       color: const Color(0xFFF5F5F5),
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: 1,
+        reverse: false,
+        itemCount: state.messages.length,
         itemBuilder: (context, index) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 40),
-              CircleAvatar(
-                radius: 40,
-                backgroundColor: AppColors.primary,
-                child: const Icon(Icons.route, size: 40, color: Colors.white),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                '嗨！我是你的学习路径助手',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+          final message = state.messages[index];
+          final isUser = message['role'] == 'user';
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Row(
+              mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+              children: [
+                if (!isUser) ...[
+                  CircleAvatar(
+                    backgroundColor: AppColors.primary,
+                    child: const Icon(Icons.route, color: Colors.white),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isUser ? AppColors.primary : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      message['content'],
+                      style: TextStyle(
+                        color: isUser ? Colors.white : AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '我可以帮你规划学习路径、跟踪学习进度',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: AppColors.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+                if (isUser) ...[
+                  const SizedBox(width: 8),
+                  CircleAvatar(
+                    backgroundColor: AppColors.primary,
+                    child: const Icon(Icons.person, color: Colors.white),
+                  ),
+                ],
+              ],
+            ),
           );
         },
       ),
@@ -299,19 +354,14 @@ class _LearningPathPageState extends ConsumerState<LearningPathPage> {
     message = message.trim();
     if (message.isEmpty) return;
 
+    _inputController.clear();
     try {
-      await ref.read(learningPathProvider.notifier).createNewConversation();
-      _inputController.clear();
-      
-      final state = ref.read(learningPathProvider);
-      if (mounted && state.conversations.isNotEmpty) {
-        context.go('/learning-path/${state.conversations.first['id']}');
-      }
+      await ref.read(learningPathProvider.notifier).sendMessage(message);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('创建学习路径失败：$e'),
+            content: Text('发送消息失败：$e'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),

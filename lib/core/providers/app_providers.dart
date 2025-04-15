@@ -4,6 +4,7 @@ import '../../features/assessment/providers/assessment_provider.dart';
 import '../../features/learning_path/providers/learning_path_provider.dart';
 import '../../features/learning_path/services/learning_path_service.dart';
 import '../../features/profile/providers/profile_provider.dart';
+import '../../features/profile/services/profile_service.dart';
 
 /// 全局Provider容器
 final container = ProviderContainer();
@@ -26,5 +27,6 @@ final learningPathProvider = StateNotifierProvider<LearningPathNotifier, Learnin
 
 /// 个人中心状态Provider
 final profileProvider = StateNotifierProvider<ProfileNotifier, ProfileState>((ref) {
-  return ProfileNotifier();
+  final service = ProfileService();
+  return ProfileNotifier(service);
 });

@@ -1,61 +1,45 @@
- import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../services/profile_service.dart';
 
 /// 个人中心状态
 class ProfileState {
   final bool isLoading;
-  final String? username;
-  final String? email;
-  final String? avatar;
-  final Map<String, dynamic>? statistics;
   final String? error;
+  final Map<String, dynamic>? profile;
 
   const ProfileState({
     this.isLoading = false,
-    this.username,
-    this.email,
-    this.avatar,
-    this.statistics,
     this.error,
+    this.profile,
   });
 
   ProfileState copyWith({
     bool? isLoading,
-    String? username,
-    String? email,
-    String? avatar,
-    Map<String, dynamic>? statistics,
     String? error,
+    Map<String, dynamic>? profile,
   }) {
     return ProfileState(
       isLoading: isLoading ?? this.isLoading,
-      username: username ?? this.username,
-      email: email ?? this.email,
-      avatar: avatar ?? this.avatar,
-      statistics: statistics ?? this.statistics,
-      error: error ?? this.error,
+      error: error,
+      profile: profile ?? this.profile,
     );
   }
 }
 
 /// 个人中心状态管理
 class ProfileNotifier extends StateNotifier<ProfileState> {
-  ProfileNotifier() : super(const ProfileState());
+  final ProfileService _service;
+
+  ProfileNotifier(this._service) : super(const ProfileState());
 
   /// 加载用户信息
   Future<void> loadProfile() async {
-    state = state.copyWith(isLoading: true);
+    state = state.copyWith(isLoading: true, error: null);
     try {
-      // TODO: 实现加载用户信息逻辑
-      final profile = {
-        'username': '用户名',
-        'email': 'email@example.com',
-        'avatar': 'avatar_url',
-      };
+      final profile = await _service.getUserProfile();
       state = state.copyWith(
         isLoading: false,
-        username: profile['username'],
-        email: profile['email'],
-        avatar: profile['avatar'],
+        profile: profile,
       );
     } catch (e) {
       state = state.copyWith(
@@ -66,15 +50,17 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   }
 
   /// 更新用户信息
-  Future<void> updateProfile(String username, String email) async {
-    state = state.copyWith(isLoading: true);
+  Future<void> updateProfile({
+    required String name,
+    required String email,
+  }) async {
+    state = state.copyWith(isLoading: true, error: null);
     try {
-      // TODO: 实现更新用户信息逻辑
-      state = state.copyWith(
-        isLoading: false,
-        username: username,
+      await _service.updateProfile(
+        name: name,
         email: email,
       );
+      await loadProfile();  // 重新加载用户信息
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
@@ -83,20 +69,31 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     }
   }
 
-  /// 加载统计数据
-  Future<void> loadStatistics() async {
-    state = state.copyWith(isLoading: true);
+  Future<void> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    state = state.copyWith(isLoading: true, error: null);
     try {
-      // TODO: 实现加载统计数据逻辑
-      final statistics = {
-        'learningTime': 100,
-        'completedCourses': 10,
-        'assessmentScore': 85,
-      };
+      await _service.changePassword(
+        oldPassword: oldPassword,
+        newPassword: newPassword,
+      );
+      state = state.copyWith(isLoading: false);
+    } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        statistics: statistics,
+        error: e.toString(),
       );
+      throw e.toString();
+    }
+  }
+
+  Future<void> signOut() async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      await _service.signOut();
+      state = state.copyWith(isLoading: false);
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
@@ -105,3 +102,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     }
   }
 }
+
+final profileProvider = StateNotifierProvider<ProfileNotifier, ProfileState>((ref) {
+  return ProfileNotifier(ProfileService());
+});
