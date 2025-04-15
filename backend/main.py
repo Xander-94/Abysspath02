@@ -7,7 +7,7 @@ import httpx
 import os
 import logging
 from dotenv import load_dotenv
-from routers import chat
+from routers import chat, assessment
 from datetime import datetime
 import json
 from services.deepseek_service import deepseek_service, DeepseekError
@@ -39,7 +39,7 @@ if not DEEPSEEK_API_KEY:
 logger.info(f"DEEPSEEK_API_KEY: {DEEPSEEK_API_KEY[:8]}...")
 
 app = FastAPI(
-    title="AbyssPath AI Service",
+    title="AbyssPath API",
     description="AI驱动的个性化学习路径生成器",
     version="1.0.0"
 )
@@ -139,10 +139,11 @@ class CustomJSONResponse(JSONResponse):
 
 # 注册路由
 app.include_router(chat.router)
+app.include_router(assessment.router)
 
 @app.get("/")
 async def root():
-    return {"message": "Welcome to AbyssPath AI Service"}
+    return {"message": "Welcome to AbyssPath API"}
 
 @app.get("/metrics")
 async def get_metrics():
