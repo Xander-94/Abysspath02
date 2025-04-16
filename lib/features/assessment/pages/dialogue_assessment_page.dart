@@ -8,6 +8,7 @@ import '../../../core/widgets/app_scaffold.dart';
 import '../providers/dialogue_assessment_provider.dart';
 
 /// 对话评估页面 - AI对话方式评估能力
+/// 支持多轮对话，通过DialogueAssessmentProvider管理状态
 class DialogueAssessmentPage extends ConsumerStatefulWidget {
   const DialogueAssessmentPage({super.key});
 
@@ -17,11 +18,13 @@ class DialogueAssessmentPage extends ConsumerStatefulWidget {
 
 class _DialogueAssessmentPageState extends ConsumerState<DialogueAssessmentPage> {
   final TextEditingController _inputController = TextEditingController();
+  final ScrollController _scrollController = ScrollController(); // 用于消息自动滚动
   
   @override
   void initState() {
     super.initState();
     _checkAuth();
+    // 初始加载历史对话列表
     Future.microtask(() => ref.read(dialogueAssessmentProvider.notifier).loadConversations());
   }
 
@@ -34,15 +37,36 @@ class _DialogueAssessmentPageState extends ConsumerState<DialogueAssessmentPage>
     }
   }
 
+  // 消息列表滚动到底部
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      });
+    }
+  }
+
   @override
   void dispose() {
     _inputController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(dialogueAssessmentProvider);
+    
+    // 监听消息变化，自动滚动到底部
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (state.messages.isNotEmpty) {
+        _scrollToBottom();
+      }
+    });
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -68,10 +92,37 @@ class _DialogueAssessmentPageState extends ConsumerState<DialogueAssessmentPage>
       ),
       body: Column(
         children: [
+          // 错误提示（如果有）
+          if (state.error != null)
+            Container(
+              color: Colors.red.shade50,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  Icon(Icons.error_outline, color: Colors.red.shade700, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      state.error!,
+                      style: AppStyles.bodySmall.copyWith(color: Colors.red.shade700),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, color: Colors.red.shade700, size: 16),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () {
+                      // 清除错误信息
+                      ref.read(dialogueAssessmentProvider.notifier).clearError();
+                    },
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: _buildChatPanel(state),
           ),
-          _buildBottomInput(),
+          _buildBottomInput(state), // 传入state用于禁用加载中的输入框
         ],
       ),
     );
@@ -219,8 +270,9 @@ class _DialogueAssessmentPageState extends ConsumerState<DialogueAssessmentPage>
     }
   }
 
-  // 对话面板
+  // 对话消息面板
   Widget _buildChatPanel(DialogueAssessmentState state) {
+    // 没有消息时显示欢迎界面
     if (state.messages.isEmpty) {
       return Center(
         child: Column(
@@ -268,12 +320,15 @@ class _DialogueAssessmentPageState extends ConsumerState<DialogueAssessmentPage>
       );
     }
 
+    // 有消息时显示对话内容
     return Stack(
       children: [
         ListView.builder(
+          controller: _scrollController, // 添加控制器以支持滚动到底部
           padding: const EdgeInsets.all(16),
           itemCount: state.messages.length + (state.assessmentResult != null ? 1 : 0),
           itemBuilder: (context, index) {
+            // 如果有评估结果且是最后一项，显示评估结果
             if (index == state.messages.length && state.assessmentResult != null) {
               return _buildAssessmentResult(state.assessmentResult!);
             }
@@ -303,6 +358,7 @@ class _DialogueAssessmentPageState extends ConsumerState<DialogueAssessmentPage>
             );
           },
         ),
+        // 显示加载指示器
         if (state.isLoading)
           Positioned(
             left: 0,
@@ -336,7 +392,11 @@ class _DialogueAssessmentPageState extends ConsumerState<DialogueAssessmentPage>
     );
   }
 
-  Widget _buildBottomInput() {
+  // 底部输入框
+  Widget _buildBottomInput(DialogueAssessmentState state) {
+    // 加载中禁用输入
+    final bool isInputEnabled = !state.isLoading;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -351,17 +411,23 @@ class _DialogueAssessmentPageState extends ConsumerState<DialogueAssessmentPage>
       ),
       child: Row(
         children: [
+          IconButton(
+            icon: Icon(Icons.psychology_outlined, 
+                color: isInputEnabled ? AppColors.primary : Colors.grey),
+            onPressed: isInputEnabled ? () => _handleFollowUpQuestions() : null,
+            tooltip: '智能追问',
+          ),
           Expanded(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: isInputEnabled ? Colors.grey.shade100 : Colors.grey.shade50,
                 borderRadius: BorderRadius.circular(24),
               ),
               child: TextField(
                 controller: _inputController,
                 decoration: InputDecoration(
-                  hintText: '请输入您想要评估的内容...',
+                  hintText: isInputEnabled ? '请输入您想要评估的内容...' : 'AI正在思考中...',
                   hintStyle: AppStyles.bodyMedium.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -369,7 +435,8 @@ class _DialogueAssessmentPageState extends ConsumerState<DialogueAssessmentPage>
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
                 ),
                 style: AppStyles.bodyMedium,
-                onSubmitted: _sendMessage,
+                onSubmitted: isInputEnabled ? _sendMessage : null,
+                enabled: isInputEnabled,
               ),
             ),
           ),
@@ -378,12 +445,12 @@ class _DialogueAssessmentPageState extends ConsumerState<DialogueAssessmentPage>
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: AppColors.primary,
+              color: isInputEnabled ? AppColors.primary : Colors.grey,
               borderRadius: BorderRadius.circular(24),
             ),
             child: IconButton(
               icon: const Icon(Icons.send, color: Colors.white),
-              onPressed: () => _sendMessage(_inputController.text),
+              onPressed: isInputEnabled ? () => _sendMessage(_inputController.text) : null,
             ),
           ),
         ],
@@ -391,10 +458,48 @@ class _DialogueAssessmentPageState extends ConsumerState<DialogueAssessmentPage>
     );
   }
 
+  // 发送消息
   void _sendMessage(String message) {
     if (message.trim().isNotEmpty) {
+      // 该方法内部已经实现了多轮对话的逻辑，包括：
+      // 1. 将用户消息添加到 messagesHistory
+      // 2. 将完整的 messagesHistory 发送到后端
+      // 3. 接收AI回复并添加到 messagesHistory
       ref.read(dialogueAssessmentProvider.notifier).sendMessage(message.trim());
       _inputController.clear();
+    }
+  }
+
+  // 处理追问请求
+  void _handleFollowUpQuestions() async {
+    final state = ref.read(dialogueAssessmentProvider);
+    if (state.currentAssessmentId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请先开始对话评估')),
+      );
+      return;
+    }
+
+    // 显示加载对话框
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      // 调用provider中的追问方法
+      await ref.read(dialogueAssessmentProvider.notifier).generateFollowUpQuestions();
+      if (mounted) Navigator.pop(context); // 关闭加载对话框
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // 关闭加载对话框
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('生成追问失败: ${e.toString()}')),
+        );
+      }
     }
   }
 
@@ -464,5 +569,13 @@ class _DialogueAssessmentPageState extends ConsumerState<DialogueAssessmentPage>
         ],
       ),
     );
+  }
+}
+
+// 添加一个扩展方法到 DialogueAssessmentNotifier 类
+extension DialogueAssessmentNotifierExtension on DialogueAssessmentNotifier {
+  // 清除错误信息的便捷方法
+  void clearError() {
+    state = state.copyWith(clearError: true);
   }
 } 

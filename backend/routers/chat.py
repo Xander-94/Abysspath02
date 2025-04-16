@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
-from models.chat import ChatRequest, ChatResponse
+from fastapi.responses import StreamingResponse
+from models.chat import ChatRequest, ChatResponse, Message
 from services.deepseek_service import DeepseekService
 import logging
 
@@ -10,20 +11,13 @@ def get_deepseek_service() -> DeepseekService:
     return DeepseekService()
 
 @router.post("/", response_model=ChatResponse)
-async def chat(
-    request: ChatRequest,
-    service: DeepseekService = Depends(get_deepseek_service)
-) -> ChatResponse:
-    """发送聊天请求"""
-    try:
-        return await service.chat(message=request.message)
-    except Exception as e:
-        logger.error(f"聊天请求失败: {str(e)}")
-        return ChatResponse(
-            content="抱歉，服务器处理请求时出现错误",
-            success=False,
-            error=str(e)
-        )
+async def chat(request: ChatRequest, service: DeepseekService = Depends(get_deepseek_service)):
+    """处理聊天请求"""
+    logger.debug(f"收到聊天请求: {request.model_dump_json()}")
+    return await service.chat(
+        messages=request.messages,
+        is_assessment=request.conversation_id == "assessment" if request.conversation_id else False
+    )
 
 @router.post("/stream")
 async def chat_stream(
@@ -38,8 +32,9 @@ async def chat_stream(
         )
     except Exception as e:
         logger.error(f"流式聊天请求失败: {str(e)}")
-        return {
-            "content": "抱歉，服务器处理请求时出现错误",
-            "success": False,
-            "error": str(e)
-        } 
+        return ChatResponse(
+            content="抱歉，服务器处理流式请求时出现错误",
+            conversation_id=request.conversation_id or "string",
+            success=False,
+            error=str(e)
+        ).model_dump() 

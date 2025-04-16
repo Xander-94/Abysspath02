@@ -6,7 +6,7 @@ part of 'survey_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$surveyStateHash() => r'd9f42e8f9818394b291160c152bc97d062951edc';
+String _$surveyStateHash() => r'da756b83018f3dd959ae46cc22624f925f3ff87e';
 
 /// Copied from Dart SDK
 class _SystemHash {

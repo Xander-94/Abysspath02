@@ -12,11 +12,23 @@ class SurveyState extends _$SurveyState {
     final user = supabase.auth.currentUser;
     
     // 获取问卷信息
-    final surveyData = await supabase
+    final survey = await supabase
         .from('surveys')
         .select()
         .eq('id', surveyId)
-        .single();
+        .limit(1)
+        .maybeSingle();
+    
+    if (survey == null) throw Exception('问卷不存在');
+    if (survey is! Map<String, dynamic>) throw Exception('问卷数据格式无效');
+    
+    final id = survey['id']?.toString();
+    final title = survey['title']?.toString();
+    final description = survey['description']?.toString();
+    
+    if (id == null) throw Exception('问卷ID不能为空');
+    if (title == null) throw Exception('问卷标题不能为空'); 
+    if (description == null) throw Exception('问卷描述不能为空');
     
     // 获取问题列表
     final questionsData = await supabase
@@ -25,31 +37,65 @@ class SurveyState extends _$SurveyState {
         .eq('survey_id', surveyId)
         .order('question_order');
     
+    if (questionsData == null) throw Exception('获取问题列表失败');
+    
     // 获取所有问题的选项
     final questions = await Future.wait(
-      questionsData.map((question) async {
+      (questionsData as List).map((question) async {
+        if (question is! Map<String, dynamic>) throw Exception('问题数据格式无效');
+        if (question['id'] == null) throw Exception('问题ID不能为空');
+        
         final optionsData = await supabase
             .from('options')
             .select()
-            .eq('question_id', question['id'])
+            .eq('question_id', question['id']!)
             .order('option_order');
             
+        if (optionsData == null || optionsData is! List) throw Exception('获取选项列表失败');
+            
+        final qId = question['id']!.toString();
+        final qSurveyId = question['survey_id']?.toString();
+        final qType = question['question_type']?.toString();
+        final qText = question['question_text']?.toString();
+        final qOrder = question['question_order'] as int?;
+        
+        if (qId == null) throw Exception('问题ID不能为空');
+        if (qSurveyId == null) throw Exception('问题所属问卷ID不能为空');
+        if (qType == null) throw Exception('问题类型不能为空');
+        if (qText == null) throw Exception('问题文本不能为空');
+        if (qOrder == null) throw Exception('问题顺序不能为空');
+        
         return Question(
-          id: question['id'],
-          surveyId: question['survey_id'],
-          section: question['section'],
-          questionType: question['question_type'],
-          questionText: question['question_text'],
-          questionOrder: question['question_order'],
-          isRequired: question['is_required'],
-          maxChoices: question['max_choices'],
-          options: optionsData.map((option) => Option(
-            id: option['id'],
-            questionId: option['question_id'],
-            optionText: option['option_text'],
-            optionValue: option['option_value'],
-            optionOrder: option['option_order'],
-          )).toList(),
+          id: qId,
+          surveyId: qSurveyId,
+          section: question['section']?.toString() ?? '',
+          questionType: qType,
+          questionText: qText,
+          questionOrder: qOrder,
+          isRequired: question['is_required'] as bool? ?? false,
+          maxChoices: question['max_choices'] as int?,
+          options: optionsData.map((option) {
+            if (option is! Map<String, dynamic>) throw Exception('选项数据格式无效');
+            if (option['id'] == null) throw Exception('选项ID不能为空');
+            
+            final oId = option['id']!.toString();
+            final oQuestionId = option['question_id']?.toString();
+            final oText = option['option_text']?.toString();
+            final oOrder = option['option_order'] as int?;
+            
+            if (oId == null) throw Exception('选项ID不能为空');
+            if (oQuestionId == null) throw Exception('选项所属问题ID不能为空');
+            if (oText == null) throw Exception('选项文本不能为空');
+            if (oOrder == null) throw Exception('选项顺序不能为空');
+            
+            return Option(
+              id: oId,
+              questionId: oQuestionId,
+              optionText: oText,
+              optionValue: option['option_value']?.toString() ?? '',
+              optionOrder: oOrder,
+            );
+          }).toList(),
         );
       }),
     );
@@ -111,9 +157,9 @@ class SurveyState extends _$SurveyState {
     }
     
     return Survey(
-      id: surveyData['id'],
-      title: surveyData['title'],
-      description: surveyData['description'],
+      id: id,
+      title: title,
+      description: description,
       questions: questions,
       previousAnswers: previousAnswers,
     );
@@ -184,21 +230,36 @@ class SurveyState extends _$SurveyState {
       );
     } else {
       // 如果是首次提交
-      final response = await supabase
+      final insertTime = DateTime.now();
+      await supabase
           .from('responses')
           .insert({
             'survey_id': surveyId,
             'user_id': user.id,
-            'completed_at': DateTime.now().toIso8601String(),
-          })
-          .select()
-          .single();
-      
+            'completed_at': insertTime.toIso8601String(),
+          }); // 只执行插入，不立即 select
+
+      // 单独查询刚刚插入的记录以获取 ID
+      final response = await supabase
+          .from('responses')
+          .select('id')
+          .eq('survey_id', surveyId)
+          .eq('user_id', user.id)
+          // .eq('completed_at', insertTime.toIso8601String()) // 可以选择加上时间戳精确匹配，但可能因精度问题不可靠
+          .order('completed_at', ascending: false) // 按时间倒序
+          .limit(1) // 取最新的一条
+          .single(); // 确保只取到一条
+          
+      final responseId = response['id'];
+      if (responseId == null) { // 添加额外的检查以防万一
+          throw Exception('未能获取新创建的问卷响应ID');
+      }
+
       // 创建答案明细
       await supabase.from('response_details').insert(
         details.map((detail) {
           final Map<String, dynamic> data = {
-            'response_id': response['id'],
+            'response_id': responseId,
             'question_id': detail.questionId,
             'answer_text': detail.answerText,
           };

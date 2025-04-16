@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_styles.dart';
+import '../models/profile.dart';
+import '../providers/profile_notifier.dart';
+import '../services/profile_service.dart';
 import '../../../core/widgets/app_scaffold.dart';
-import '../providers/profile_provider.dart';
+import '../widgets/profile_avatar.dart';
+
+final profileProvider = StateNotifierProvider<ProfileNotifier, ProfileState>((ref) {
+  return ProfileNotifier(ProfileService());
+});
 
 class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
@@ -14,10 +19,10 @@ class ProfilePage extends ConsumerStatefulWidget {
 }
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _isEditing = false;
 
   @override
   void initState() {
@@ -28,315 +33,209 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   @override
   void dispose() {
     _nameController.dispose();
-    _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(profileProvider);
+    final profileState = ref.watch(profileProvider);
 
-    if (state.isLoading) {
-      return const AppScaffold(
+    if (profileState.isLoading) {
+      return AppScaffold(
         title: '个人中心',
-        body: Center(child: CircularProgressIndicator()),
+        showBottomNav: true,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (profileState.error != null) {
+      return AppScaffold(
+        title: '个人中心',
+        showBottomNav: true,
+        body: Center(child: Text('加载失败: ${profileState.error}')),
+      );
+    }
+
+    final profile = profileState.profile;
+    if (profile == null) {
+      return AppScaffold(
+        title: '个人中心',
+        showBottomNav: true,
+        body: const Center(child: Text('未找到个人信息')),
       );
     }
 
     return AppScaffold(
       title: '个人中心',
-      body: SingleChildScrollView(
+      showBottomNav: true,
+      body: ListView(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildUserInfo(state),
-            const SizedBox(height: 24),
-            _buildProfileSection(state),
-            const SizedBox(height: 24),
-            _buildActionButtons(context),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildUserInfo(ProfileState state) {
-    final String displayName = state.profile?['name'] ?? state.profile?['email']?.split('@')[0] ?? '未登录';
-    final String displayEmail = state.profile?['email'] ?? '未设置邮箱';
-    final String avatarText = displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U';
-    final bool isLoggedIn = state.profile != null;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 32,
-              backgroundColor: isLoggedIn ? AppColors.primary : Colors.grey,
-              child: Text(
-                avatarText,
-                style: const TextStyle(
-                  fontSize: 24,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+        children: [
+          Center(child: ProfileAvatar(
+            url: profile.avatar,
+            size: 100,
+            onTap: () => _showEditDialog(context, profile, isAvatar: true),
+          )),
+          const SizedBox(height: 16),
+          ListTile(
+            title: Text('用户名'),
+            subtitle: Text(profile.name ?? '未设置'),
+            trailing: IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () => _showEditDialog(context, profile),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    displayName,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    displayEmail,
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+          ListTile(
+            title: Text('邮箱'),
+            subtitle: Text(profile.email ?? '未设置'),
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.password),
+            title: Text('修改密码'),
+            onTap: () => _showChangePasswordDialog(context),
+          ),
+          ListTile(
+            leading: const Icon(Icons.logout),
+            title: Text('退出登录'),
+            onTap: () => _handleSignOut(context),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildProfileSection(ProfileState state) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '个人信息',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _nameController..text = state.profile?['name'] ?? '',
-                decoration: const InputDecoration(
-                  labelText: '用户名',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return '请输入用户名';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _emailController..text = state.profile?['email'] ?? '',
-                decoration: const InputDecoration(
-                  labelText: '邮箱',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return '请输入邮箱';
-                  }
-                  if (!value.contains('@')) {
-                    return '请输入有效的邮箱地址';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () async {
-                  if (_formKey.currentState!.validate()) {
-                    try {
-                      await ref.read(profileProvider.notifier).updateProfile(
-                        name: _nameController.text,
-                        email: _emailController.text,
-                      );
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('更新成功')),
-                        );
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('更新失败：$e')),
-                        );
-                      }
-                    }
-                  }
-                },
-                child: const Text('保存修改'),
-              ),
-            ],
+  Future<void> _showEditDialog(BuildContext context, Profile profile, {bool isAvatar = false}) async {
+    final controller = TextEditingController(
+      text: isAvatar ? profile.avatar : profile.name,
+    );
+    
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isAvatar ? '修改头像' : '修改用户名'),
+        content: TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            hintText: isAvatar ? '请输入头像URL' : '请输入用户名',
           ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: Text('确定'),
+          ),
+        ],
       ),
     );
-  }
 
-  Widget _buildActionButtons(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ElevatedButton.icon(
-          onPressed: () => _showChangePasswordDialog(context),
-          icon: const Icon(Icons.lock_outline),
-          label: const Text('修改密码'),
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.all(16),
+    if (result != null && mounted) {
+      final notifier = ref.read(profileProvider.notifier);
+      final success = await notifier.updateProfile(
+        name: isAvatar ? null : result,
+        avatar: isAvatar ? result : null,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success ? '更新成功' : '更新失败'),
           ),
-        ),
-        const SizedBox(height: 16),
-        ElevatedButton.icon(
-          onPressed: () => _showSignOutDialog(context),
-          icon: const Icon(Icons.exit_to_app),
-          label: const Text('退出登录'),
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.all(16),
-            backgroundColor: Colors.red,
-          ),
-        ),
-      ],
-    );
+        );
+      }
+    }
   }
 
   Future<void> _showChangePasswordDialog(BuildContext context) async {
-    final formKey = GlobalKey<FormState>();
-    final oldPasswordController = TextEditingController();
-    final newPasswordController = TextEditingController();
-
-    return showDialog(
+    final passwordController = TextEditingController();
+    final confirmController = TextEditingController();
+    
+    final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('修改密码'),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: oldPasswordController,
-                decoration: const InputDecoration(
-                  labelText: '当前密码',
-                  border: OutlineInputBorder(),
-                ),
-                obscureText: true,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return '请输入当前密码';
-                  }
-                  return null;
-                },
+        title: Text('修改密码'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: passwordController,
+              obscureText: true,
+              decoration: InputDecoration(
+                hintText: '请输入新密码',
               ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: newPasswordController,
-                decoration: const InputDecoration(
-                  labelText: '新密码',
-                  border: OutlineInputBorder(),
-                ),
-                obscureText: true,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return '请输入新密码';
-                  }
-                  if (value.length < 6) {
-                    return '密码长度不能小于6位';
-                  }
-                  return null;
-                },
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: confirmController,
+              obscureText: true,
+              decoration: InputDecoration(
+                hintText: '请确认新密码',
               ),
-            ],
-          ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: Text('取消'),
           ),
           TextButton(
-            onPressed: () async {
-              if (formKey.currentState!.validate()) {
-                try {
-                  await ref.read(profileProvider.notifier).changePassword(
-                    oldPassword: oldPasswordController.text,
-                    newPassword: newPasswordController.text,
-                  );
-                  if (mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('密码修改成功')),
-                    );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(e.toString())),
-                    );
-                  }
-                }
+            onPressed: () {
+              if (passwordController.text != confirmController.text) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('两次输入的密码不一致')),
+                );
+                return;
               }
+              Navigator.pop(context, true);
             },
-            child: const Text('确认'),
+            child: Text('确定'),
           ),
         ],
       ),
     );
+
+    if (result == true && mounted) {
+      final notifier = ref.read(profileProvider.notifier);
+      final success = await notifier.changePassword(passwordController.text);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success ? '密码修改成功' : '密码修改失败'),
+          ),
+        );
+      }
+    }
   }
 
-  Future<void> _showSignOutDialog(BuildContext context) async {
-    return showDialog(
+  Future<void> _handleSignOut(BuildContext context) async {
+    final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('退出登录'),
-        content: const Text('确定要退出登录吗？'),
+        title: Text('确认退出'),
+        content: Text('确定要退出登录吗？'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: Text('取消'),
           ),
           TextButton(
-            onPressed: () async {
-              try {
-                await ref.read(profileProvider.notifier).signOut();
-                if (mounted) {
-                  Navigator.pop(context);
-                  context.go('/login');
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('退出失败：$e')),
-                  );
-                }
-              }
-            },
-            child: const Text('确认'),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.red,
-            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('确定'),
           ),
         ],
       ),
     );
+
+    if (confirm == true && mounted) {
+      await ref.read(profileProvider.notifier).signOut();
+      if (mounted) {
+        context.go('/login');
+      }
+    }
   }
 }

@@ -1,108 +1,76 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/material.dart';
+import '../models/profile.dart';
 import '../services/profile_service.dart';
 
-/// 个人中心状态
-class ProfileState {
-  final bool isLoading;
-  final String? error;
-  final Map<String, dynamic>? profile;
+class ProfileProvider extends ChangeNotifier {
+  final _service = ProfileService();
+  Profile? _profile;
+  bool _loading = false;
+  String? _error;
 
-  const ProfileState({
-    this.isLoading = false,
-    this.error,
-    this.profile,
-  });
+  Profile? get profile => _profile;
+  bool get loading => _loading;
+  String? get error => _error;
 
-  ProfileState copyWith({
-    bool? isLoading,
-    String? error,
-    Map<String, dynamic>? profile,
-  }) {
-    return ProfileState(
-      isLoading: isLoading ?? this.isLoading,
-      error: error,
-      profile: profile ?? this.profile,
-    );
-  }
-}
-
-/// 个人中心状态管理
-class ProfileNotifier extends StateNotifier<ProfileState> {
-  final ProfileService _service;
-
-  ProfileNotifier(this._service) : super(const ProfileState());
-
-  /// 加载用户信息
   Future<void> loadProfile() async {
-    state = state.copyWith(isLoading: true, error: null);
+    _loading = true;
+    _error = null;
+    notifyListeners();
+
     try {
-      final profile = await _service.getUserProfile();
-      state = state.copyWith(
-        isLoading: false,
-        profile: profile,
-      );
+      _profile = await _service.getProfile();
+      _error = _profile == null ? '获取用户信息失败' : null;
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
+      _error = '获取用户信息失败: $e';
+    }
+
+    _loading = false;
+    notifyListeners();
+  }
+
+  Future<bool> updateProfile(Profile profile) async {
+    _loading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final success = await _service.updateProfile(profile);
+      if (success) {
+        _profile = profile;
+        return true;
+      }
+      _error = '更新用户信息失败';
+      return false;
+    } catch (e) {
+      _error = '更新用户信息失败: $e';
+      return false;
+    } finally {
+      _loading = false;
+      notifyListeners();
     }
   }
 
-  /// 更新用户信息
-  Future<void> updateProfile({
-    required String name,
-    required String email,
-  }) async {
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      await _service.updateProfile(
-        name: name,
-        email: email,
-      );
-      await loadProfile();  // 重新加载用户信息
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
-    }
-  }
+  Future<bool> changePassword(String password) async {
+    _loading = true;
+    _error = null;
+    notifyListeners();
 
-  Future<void> changePassword({
-    required String oldPassword,
-    required String newPassword,
-  }) async {
-    state = state.copyWith(isLoading: true, error: null);
     try {
-      await _service.changePassword(
-        oldPassword: oldPassword,
-        newPassword: newPassword,
-      );
-      state = state.copyWith(isLoading: false);
+      final success = await _service.changePassword(password);
+      if (!success) _error = '修改密码失败';
+      return success;
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
-      throw e.toString();
+      _error = '修改密码失败: $e';
+      return false;
+    } finally {
+      _loading = false;
+      notifyListeners();
     }
   }
 
   Future<void> signOut() async {
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      await _service.signOut();
-      state = state.copyWith(isLoading: false);
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
-    }
+    await _service.signOut();
+    _profile = null;
+    notifyListeners();
   }
 }
-
-final profileProvider = StateNotifierProvider<ProfileNotifier, ProfileState>((ref) {
-  return ProfileNotifier(ProfileService());
-});

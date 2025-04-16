@@ -13,7 +13,7 @@ class Message(BaseModel):
         }
 
 class ChatRequest(BaseModel):
-    message: str = Field(..., description="用户消息")
+    messages: List[Message] = Field(..., description="包含对话历史的消息列表")
     conversation_id: Optional[str] = Field(default="string", description="会话ID")
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="元数据")
 
