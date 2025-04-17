@@ -9,7 +9,7 @@ import '../../features/assessment/pages/assessment_page.dart';
 import '../../features/assessment/pages/dialogue_assessment_page.dart';
 import '../../features/learning_path/pages/learning_path_page.dart';
 import '../../features/learning_path/pages/learning_path_detail_page.dart';
-import '../../features/profile/pages/profile_page.dart';
+import '../../features/portrait/presentation/pages/portrait_page.dart';
 import '../../features/settings/pages/settings_page.dart';
 import '../../features/survey/pages/survey_page.dart';
 import '../providers/app_providers.dart';
@@ -170,10 +170,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       // 个人中心路由
       GoRoute(
         path: '/profile',
-        builder: (context, state) => const ProfilePage(),
+        builder: (context, state) => const PortraitPage(),
         pageBuilder: (context, state) => CustomTransitionPage(
           key: state.pageKey,
-          child: const ProfilePage(),
+          child: const PortraitPage(),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(opacity: animation, child: child);
           },

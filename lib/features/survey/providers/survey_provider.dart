@@ -1,11 +1,16 @@
+import 'dart:convert';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/survey_models.dart';
+import '../../profile/services/profile_service.dart';
+import '../../profile/providers/profile_notifier.dart';
 
 part 'survey_provider.g.dart';
 
 @riverpod
 class SurveyState extends _$SurveyState {
+  bool _isSubmitting = false; // 添加实例变量用于并发控制
+
   @override
   Future<Survey> build(String surveyId) async {
     final supabase = Supabase.instance.client;
@@ -166,132 +171,205 @@ class SurveyState extends _$SurveyState {
   }
 
   Future<void> submitResponse(List<ResponseDetail> details) async {
-    final supabase = Supabase.instance.client;
-    final user = supabase.auth.currentUser;
-    if (user == null) throw Exception('用户未登录');
-    
-    final surveyId = state.value?.id;
-    if (surveyId == null) throw Exception('问卷ID不能为空');
-    
-    // 检查是否存在之前的回答
-    final previousResponse = await supabase
-        .from('responses')
-        .select('id')
-        .eq('survey_id', surveyId)
-        .eq('user_id', user.id)
-        .maybeSingle();
+    if (_isSubmitting) {
+      print('[Survey Submit Debug] Already submitting, ignoring concurrent call.');
+      return;
+    }
+    _isSubmitting = true;
+    print('[Survey Submit Debug] Started submission process.');
 
-    if (previousResponse != null) {
-      // 如果存在之前的回答，先删除旧的答案明细
-      await supabase
-          .from('response_details')
-          .delete()
-          .eq('response_id', previousResponse['id']);
-      
-      // 更新完成时间
-      await supabase
-          .from('responses')
-          .update({'completed_at': DateTime.now().toIso8601String()})
-          .eq('id', previousResponse['id']);
-      
-      // 插入新的答案明细
-      await supabase.from('response_details').insert(
-        details.map((detail) {
-          final Map<String, dynamic> data = {
-            'response_id': previousResponse['id'],
-            'question_id': detail.questionId,
-            'answer_text': detail.answerText,
-          };
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) throw Exception('用户未登录');
 
-          // 处理答案值，确保 answer_values 不为空
-          if (detail.answerValue != null) {
-            data['answer_values'] = [detail.answerValue];
-          } else if (detail.answerValues != null && detail.answerValues!.isNotEmpty) {
-            data['answer_values'] = detail.answerValues;
-          } else if (detail.optionId != null) {
-            data['answer_values'] = [detail.optionId];
-          } else if (detail.optionIds != null && detail.optionIds!.isNotEmpty) {
-            data['answer_values'] = detail.optionIds;
-          } else {
-            data['answer_values'] = [''];
-          }
+      final surveyId = state.value?.id;
+      if (surveyId == null) throw Exception('问卷ID不能为空');
 
-          // 处理选项ID
-          if (detail.optionId != null) {
-            data['option_ids'] = [detail.optionId];
-          } else if (detail.optionIds != null && detail.optionIds!.isNotEmpty) {
-            data['option_ids'] = detail.optionIds;
-          } else {
-            data['option_ids'] = [];
-          }
-
-          return data;
-        }).toList(),
-      );
-    } else {
-      // 如果是首次提交
-      final insertTime = DateTime.now();
-      await supabase
-          .from('responses')
-          .insert({
-            'survey_id': surveyId,
-            'user_id': user.id,
-            'completed_at': insertTime.toIso8601String(),
-          }); // 只执行插入，不立即 select
-
-      // 单独查询刚刚插入的记录以获取 ID
-      final response = await supabase
+      final previousResponse = await supabase
           .from('responses')
           .select('id')
           .eq('survey_id', surveyId)
           .eq('user_id', user.id)
-          // .eq('completed_at', insertTime.toIso8601String()) // 可以选择加上时间戳精确匹配，但可能因精度问题不可靠
-          .order('completed_at', ascending: false) // 按时间倒序
-          .limit(1) // 取最新的一条
-          .single(); // 确保只取到一条
-          
-      final responseId = response['id'];
-      if (responseId == null) { // 添加额外的检查以防万一
-          throw Exception('未能获取新创建的问卷响应ID');
+          .maybeSingle();
+
+      final ProfileService profileService = ref.read(profileServiceProvider);
+
+      if (previousResponse != null) {
+        final responseId = previousResponse['id'] as String;
+
+        final detailsPayload = details.map((detail) {
+           final List<String> answerValuesResult;
+           final List<String> optionIdsResult;
+
+           // Determine answer_values based on previous logic
+           if (detail.answerValue != null) {
+             answerValuesResult = [detail.answerValue!];
+           } else if (detail.answerValues != null && detail.answerValues!.isNotEmpty) {
+             answerValuesResult = detail.answerValues!;
+           } else if (detail.optionId != null) {
+              // For single choice stored in optionId, treat it as a single element list for answer_values
+             answerValuesResult = [detail.optionId!]; 
+           } else if (detail.optionIds != null && detail.optionIds!.isNotEmpty) {
+             // For multiple choice stored in optionIds, use them directly for answer_values
+             answerValuesResult = detail.optionIds!;
+           } else {
+             answerValuesResult = [];
+           }
+
+           // Determine option_ids based on previous logic
+           if (detail.optionId != null) {
+             optionIdsResult = [detail.optionId!];
+           } else if (detail.optionIds != null && detail.optionIds!.isNotEmpty) {
+             optionIdsResult = detail.optionIds!;
+           } else {
+             optionIdsResult = [];
+           }
+
+           return {
+             'question_id': detail.questionId, // String UUID
+             'answer_text': detail.answerText, // String or null
+             // Use the determined lists directly
+             'answer_values': answerValuesResult, 
+             'option_ids': optionIdsResult, 
+           };
+         }).toList();
+
+        print('[Survey Submit Debug] Calling RPC update_response_details for response_id: $responseId');
+        await supabase.rpc(
+          'update_response_details',
+          params: {
+            'target_response_id': responseId,
+            'new_details': detailsPayload,
+          },
+        );
+        print('[Survey Submit Debug] RPC update_response_details finished for response_id: $responseId');
+
+        await supabase
+            .from('responses')
+            .update({'completed_at': DateTime.now().toIso8601String()})
+            .eq('id', responseId);
+        print('[Survey Submit Debug] Updated completed_at for response_id: $responseId');
+
+        // --- END: Update profile ---
+
+      } else {
+        // ... (existing logic for first submission) ...
+        final insertTime = DateTime.now();
+        await supabase
+            .from('responses')
+            .insert({'survey_id': surveyId, 'user_id': user.id, 'completed_at': insertTime.toIso8601String()});
+
+        final response = await supabase
+            .from('responses')
+            .select('id')
+            .eq('survey_id', surveyId)
+            .eq('user_id', user.id)
+            .order('completed_at', ascending: false)
+            .limit(1)
+            .single();
+
+        final responseId = response['id'] as String?; // 获取新创建的 responseId
+        if (responseId == null) {
+            throw Exception('未能获取新创建的问卷响应ID');
+        }
+
+        print('[Survey Submit Debug] Inserting initial details for new response_id: $responseId');
+        await supabase.from('response_details').insert(
+          details.map((detail) {
+            // ... (existing mapping logic for initial insert) ...
+             final Map<String, dynamic> data = {
+              'response_id': responseId,
+              'question_id': detail.questionId,
+              'answer_text': detail.answerText,
+            };
+            // Determine answer_values based on previous logic
+             final List<String> answerValuesResult;
+             if (detail.answerValue != null) {
+               answerValuesResult = [detail.answerValue!];
+             } else if (detail.answerValues != null && detail.answerValues!.isNotEmpty) {
+               answerValuesResult = detail.answerValues!;
+             } else if (detail.optionId != null) {
+               answerValuesResult = [detail.optionId!]; 
+             } else if (detail.optionIds != null && detail.optionIds!.isNotEmpty) {
+               answerValuesResult = detail.optionIds!;
+             } else {
+               answerValuesResult = [];
+             }
+             data['answer_values'] = answerValuesResult;
+
+             // Determine option_ids based on previous logic
+             final List<String> optionIdsResult;
+             if (detail.optionId != null) {
+               optionIdsResult = [detail.optionId!];
+             } else if (detail.optionIds != null && detail.optionIds!.isNotEmpty) {
+               optionIdsResult = detail.optionIds!;
+             } else {
+               optionIdsResult = [];
+             }
+             data['option_ids'] = optionIdsResult;
+
+
+            return data;
+          }).toList(),
+        );
+        print('[Survey Submit Debug] Finished inserting initial details for response_id: $responseId');
+
+         // --- END: Update profile ---
       }
+      print('[Survey Submit Debug] Submission process completed successfully.');
 
-      // 创建答案明细
-      await supabase.from('response_details').insert(
-        details.map((detail) {
-          final Map<String, dynamic> data = {
-            'response_id': responseId,
-            'question_id': detail.questionId,
-            'answer_text': detail.answerText,
-          };
+       // --- Get the actual responseId used (either existing or new) ---
+       final finalResponseId = previousResponse?['id'] as String? ?? (await supabase
+            .from('responses')
+            .select('id')
+            .eq('survey_id', surveyId)
+            .eq('user_id', user.id)
+            .order('completed_at', ascending: false)
+            .limit(1)
+            .single())['id'] as String?;
 
-          // 处理答案值，确保 answer_values 不为空
-          if (detail.answerValue != null) {
-            data['answer_values'] = [detail.answerValue];
-          } else if (detail.answerValues != null && detail.answerValues!.isNotEmpty) {
-            data['answer_values'] = detail.answerValues;
-          } else if (detail.optionId != null) {
-            data['answer_values'] = [detail.optionId];
-          } else if (detail.optionIds != null && detail.optionIds!.isNotEmpty) {
-            data['answer_values'] = detail.optionIds;
-          } else {
-            data['answer_values'] = [''];
-          }
+       if (finalResponseId != null) {
+         print('[Survey Submit Debug] Triggering profile load for responseId: $finalResponseId');
+         // Directly call ProfileNotifier's method to load using the specific ID
+         await ref.read(profileProvider.notifier).loadProfileFromResponse(finalResponseId);
 
-          // 处理选项ID
-          if (detail.optionId != null) {
-            data['option_ids'] = [detail.optionId];
-          } else if (detail.optionIds != null && detail.optionIds!.isNotEmpty) {
-            data['option_ids'] = detail.optionIds;
-          } else {
-            data['option_ids'] = [];
-          }
+         // --- NEW STEP: Update profiles table with the latest structural data --- 
+         print('[Survey Submit Debug] Attempting to update profiles table with latest structural data.');
+         // Read the state AFTER loadProfileFromResponse has potentially updated it
+         final currentCorrectProfileState = ref.read(profileProvider); 
+         if (currentCorrectProfileState.profile != null && currentCorrectProfileState.error == null) {
+             try {
+                 // Get the ProfileService instance (already available via dependency)
+                 // final profileService = ref.read(profileServiceProvider);
+                 await profileService.updateProfile(currentCorrectProfileState.profile!); // Use the service passed in constructor or read via ref
+                 print('[Survey Submit Debug] Successfully updated profiles table.');
+             } catch (updateError) {
+                 print('[Survey Submit Error] Failed to update profiles table: $updateError');
+             }
+         } else {
+             print('[Survey Submit Debug] Skipping profiles table update due to invalid profile state (error: ${currentCorrectProfileState.error}).');
+         }
+         // --- END NEW STEP ---
 
-          return data;
-        }).toList(),
-      );
+       } else {
+         print('[Survey Submit Error] Could not determine final responseId to trigger profile load.');
+         // Fallback: invalidate in case we couldn't get the ID somehow
+         ref.invalidate(profileProvider); 
+       }
+
+    } catch (e, stackTrace) {
+       print('[Survey Submit Error] Submission failed: $e');
+       print(stackTrace);
+       rethrow; // Re-throw the error so the UI knows submission failed
+    } finally {
+      _isSubmitting = false;
+      print('[Survey Submit Debug] Resetting isSubmitting flag.');
+      ref.invalidateSelf(); // Invalidate the survey provider itself
+      // --- REMOVED invalidate/refresh from finally block ---
+      // await Future.delayed(const Duration(milliseconds: 500)); 
+      // print('[Survey Submit Debug] Invalidating profileProvider after delay.');
+      // ref.refresh(profileProvider); 
     }
-
-    // 刷新状态以获取最新答案
-    ref.invalidateSelf();
   }
 } 

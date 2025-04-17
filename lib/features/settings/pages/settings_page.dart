@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/widgets/app_scaffold.dart';
+import '../../profile/providers/profile_notifier.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('设置')),
+  Widget build(BuildContext context, WidgetRef ref) {
+    return AppScaffold(
+      title: '设置',
+      showBottomNav: true,
       body: ListView(
         children: [
           ListTile(
@@ -41,8 +46,25 @@ class SettingsPage extends StatelessWidget {
               // TODO: 实现关于页面
             },
           ),
+          const Divider(),
+          ListTile(
+            leading: Icon(Icons.logout, color: Theme.of(context).colorScheme.error),
+            title: Text('退出登录', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            onTap: () => _handleSignOut(context, ref),
+          ),
         ],
       ),
     );
+  }
+
+  void _handleSignOut(BuildContext context, WidgetRef ref) async {
+    final success = await ref.read(profileProvider.notifier).signOut();
+    if (!success) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('退出登录失败，请重试')));
+      return;
+    }
+    if (!context.mounted) return;
+    context.go('/login');
   }
 } 

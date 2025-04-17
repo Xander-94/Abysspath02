@@ -107,9 +107,14 @@ class AppScaffold extends ConsumerWidget {
           label: '评估',
         ),
         NavigationDestination(
-          icon: Icon(Icons.person_outline, size: 24),
-          selectedIcon: Icon(Icons.person, size: 24),
-          label: '我的',
+          icon: Icon(Icons.account_circle_outlined, size: 24),
+          selectedIcon: Icon(Icons.account_circle, size: 24),
+          label: '账户',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.person_search_outlined, size: 24),
+          selectedIcon: Icon(Icons.person_search, size: 24),
+          label: '画像',
         ),
       ],
     );
@@ -119,7 +124,8 @@ class AppScaffold extends ConsumerWidget {
     '/' => 0,
     '/learning-path' => 1,
     '/assessment' => 2,
-    '/profile' => 3,
+    '/settings' => 3,
+    '/profile' => 4,
     _ => 0,
   };
 
@@ -128,7 +134,8 @@ class AppScaffold extends ConsumerWidget {
       0 => '/',
       1 => '/learning-path',
       2 => '/assessment',
-      3 => '/profile',
+      3 => '/settings',
+      4 => '/profile',
       _ => '/',
     };
     context.go(path);
