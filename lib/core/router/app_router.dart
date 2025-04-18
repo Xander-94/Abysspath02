@@ -7,6 +7,7 @@ import '../../features/auth/pages/register_page.dart';
 import '../../features/auth/pages/forgot_password_page.dart';
 import '../../features/assessment/pages/assessment_page.dart';
 import '../../features/assessment/pages/dialogue_assessment_page.dart';
+import '../../features/assessment/pages/assessment_result_page.dart';
 import '../../features/learning_path/pages/learning_path_page.dart';
 import '../../features/learning_path/pages/learning_path_detail_page.dart';
 import '../../features/portrait/presentation/pages/portrait_page.dart';
@@ -129,6 +130,17 @@ final routerProvider = Provider<GoRouter>((ref) {
                   ).animate(animation),
                   child: child,
                 );
+              },
+            ),
+          ),
+          GoRoute(
+            path: 'result',
+            builder: (context, state) => const AssessmentResultPage(),
+            pageBuilder: (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const AssessmentResultPage(),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
               },
             ),
           ),

@@ -1,17 +1,18 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/profile.dart';
-import '../models/competency.dart';
-import '../models/interest_graph.dart';
-import '../models/behavior.dart';
-import '../models/constraints.dart';
-import '../models/dynamic_flags.dart';
+import '../models/profile.dart' as old_profile_models;
+import '../models/competency.dart' as old_profile_models;
+import '../models/interest_graph.dart' as old_profile_models;
+import '../models/behavior.dart' as old_profile_models;
+import '../models/constraints.dart' as old_profile_models;
+import '../models/dynamic_flags.dart' as old_profile_models;
+import 'package:abysspath02/features/assessment/models/assessment_profile.dart';
 
 /// 个人中心服务
 class ProfileService {
   final _supabase = Supabase.instance.client;
 
    /// 获取用户信息及指定（或最新）问卷回复，并将问卷数据映射到 Profile 结构化字段
-  Future<Profile?> getProfile({String? targetResponseId}) async { // 添加可选参数
+  Future<old_profile_models.Profile?> getProfile({String? targetResponseId}) async { // 添加可选参数
     print('[ProfileService] getProfile started. targetResponseId: $targetResponseId');
     try {
       final user = _supabase.auth.currentUser;
@@ -32,7 +33,7 @@ class ProfileService {
         return null;
       }
       print('[ProfileService] Base profile fetched: ${profileResponse}');
-      Profile baseProfile = Profile.fromJson(profileResponse);
+      old_profile_models.Profile baseProfile = old_profile_models.Profile.fromJson(profileResponse);
 
       // 2. 确定要使用的 response_id
       String? responseId;
@@ -125,11 +126,11 @@ class ProfileService {
       }
 
       // 5. 将问卷数据（如果有）映射到 Profile 的结构化字段
-      Competency updatedCompetency = baseProfile.competency ?? const Competency();
-      InterestGraph updatedInterestGraph = baseProfile.interestGraph ?? const InterestGraph();
-      Behavior updatedBehavior = baseProfile.behavior ?? const Behavior();
-      Constraints updatedConstraints = baseProfile.constraints ?? const Constraints();
-      DynamicFlags updatedDynamicFlags = baseProfile.dynamicFlags ?? const DynamicFlags();
+      old_profile_models.Competency updatedCompetency = baseProfile.competency ?? const old_profile_models.Competency();
+      old_profile_models.InterestGraph updatedInterestGraph = baseProfile.interestGraph ?? const old_profile_models.InterestGraph();
+      old_profile_models.Behavior updatedBehavior = baseProfile.behavior ?? const old_profile_models.Behavior();
+      old_profile_models.Constraints updatedConstraints = baseProfile.constraints ?? const old_profile_models.Constraints();
+      old_profile_models.DynamicFlags updatedDynamicFlags = baseProfile.dynamicFlags ?? const old_profile_models.DynamicFlags();
 
       if (readableSurveyData != null) {
         // --- Competency 映射 ---
@@ -233,7 +234,7 @@ class ProfileService {
          if (user == null) return null;
          final profileResponse = await _supabase.from('profiles').select().eq('id', user.id).maybeSingle();
          print('[ProfileService] Returning base profile due to error.');
-         return profileResponse == null ? null : Profile.fromJson(profileResponse);
+         return profileResponse == null ? null : old_profile_models.Profile.fromJson(profileResponse);
       } catch (profileError) {
         print('[ProfileService] Failed to get even base profile: $profileError');
         return null;
@@ -241,8 +242,76 @@ class ProfileService {
     }
   }
 
+  /// 获取用户的 AI 评估画像 (从 assessment_profiles 表)
+  Future<AssessmentProfile?> getAssessmentProfile() async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) {
+      print('[ProfileService] getAssessmentProfile: User not logged in');
+      return null;
+    }
+
+    try {
+      print('[ProfileService] Fetching assessment profile for user: $userId');
+      final response = await _supabase
+          .from('assessment_profiles') // 查询新表
+          .select('profile_data') // 只选择包含 JSON 的列
+          .eq('user_id', userId)
+          .maybeSingle(); // 如果没有找到记录，返回 null
+
+      if (response == null || response['profile_data'] == null) {
+        print('[ProfileService] No assessment profile found for user: $userId');
+        return null; // 没有找到该用户的评估画像
+      }
+
+      // 确认 profile_data 是 Map<String, dynamic>
+      final profileDataJson = response['profile_data'] as Map<String, dynamic>?;
+
+      if (profileDataJson == null) {
+        print('[ProfileService] Assessment profile data is null for user: $userId');
+        return null;
+      }
+      
+      // !! Add detailed logging before and after parsing !!
+      print('[ProfileService] Raw JSON data from DB: $profileDataJson'); 
+
+      try {
+        // 使用我们创建的模型的 fromJson 工厂进行解析
+        final assessmentProfile = AssessmentProfile.fromJson(profileDataJson);
+        
+        // !! Log the parsing result !!
+        print('[ProfileService] Parsed AssessmentProfile: coreAnalysis is null? ${assessmentProfile.coreAnalysis == null}, behavioralProfile is null? ${assessmentProfile.behavioralProfile == null}');
+        if (assessmentProfile.coreAnalysis != null) {
+             print('[ProfileService] Parsed coreAnalysis competencies count: ${assessmentProfile.coreAnalysis!.competencies.length}');
+        }
+        if (assessmentProfile.behavioralProfile != null) {
+             print('[ProfileService] Parsed behavioralProfile hobbies count: ${assessmentProfile.behavioralProfile!.hobbies.length}');
+        }
+        
+        print('[ProfileService] Successfully fetched and parsed assessment profile for user: $userId');
+        return assessmentProfile;
+      } on FormatException catch (e, stacktrace) {
+        // 捕获特定的解析错误
+        print('[ProfileService] Error parsing assessment profile JSON for user $userId: $e');
+        print('[ProfileService] Stacktrace: $stacktrace');
+        print('[ProfileService] Problematic JSON: $profileDataJson');
+        return null; // 解析失败
+      } catch (e, stacktrace) {
+        // 捕获其他可能的错误
+        print('[ProfileService] Unexpected error during assessment profile parsing for user $userId: $e');
+        print('[ProfileService] Stacktrace: $stacktrace');
+        return null;
+      }
+
+    } catch (e, stacktrace) {
+      print('[ProfileService] Error fetching assessment profile from Supabase for user $userId: $e');
+      print('[ProfileService] Stacktrace: $stacktrace');
+      // 处理 Supabase 调用本身的错误 (网络、权限等)
+      return null;
+    }
+  }
+
   /// 更新用户信息 (现在会保存包含结构化映射的画像数据)
-  Future<bool> updateProfile(Profile profile) async {
+  Future<bool> updateProfile(old_profile_models.Profile profile) async {
     try {
       if (profile.id == null) return false;
       // toJson 现在应该能序列化包含新字段的 Competency, Behavior 等对象

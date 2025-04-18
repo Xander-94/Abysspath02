@@ -6,6 +6,8 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_styles.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../providers/dialogue_assessment_provider.dart';
+import '../providers/assessment_profile_provider.dart'; // Import the provider
+import './assessment_result_page.dart'; // Import the result page
 
 /// 对话评估页面 - AI对话方式评估能力
 /// 支持多轮对话，通过DialogueAssessmentProvider管理状态
@@ -88,6 +90,17 @@ class _DialogueAssessmentPageState extends ConsumerState<DialogueAssessmentPage>
             icon: Icon(Icons.add_circle_outline, color: AppColors.primary),
             onPressed: () => _startNewAssessment(),
           ),
+          TextButton(
+            onPressed: state.isLoading ? null : _completeAssessment,
+            child: Text(
+              '完成评估',
+              style: TextStyle(
+                color: state.isLoading ? Colors.grey : AppColors.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Column(
@@ -268,6 +281,12 @@ class _DialogueAssessmentPageState extends ConsumerState<DialogueAssessmentPage>
         ),
       );
     }
+  }
+
+  void _completeAssessment() {
+    ref.refresh(assessmentProfileProvider); 
+    
+    context.push('/assessment/result');
   }
 
   // 对话消息面板

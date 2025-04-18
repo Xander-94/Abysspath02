@@ -94,3 +94,34 @@
     *   设计数据库表结构（例如为 `assessment_history` 设计包含 `user_id`, `session_id`, `message_content`, `role`, `timestamp` 等字段）。
     *   编写 SQL 迁移脚本，使用 `CREATE TABLE` 语句定义表、字段类型、主键、外键、索引等。
     *   根据需要，使用 `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` 和 `CREATE POLICY` 为表配置行级安全策略，确保用户只能访问自己的数据。
+
+## 11. 问题：异步评估画像保存失败 (数据库触发器)
+
+*   **现象**: 在对话评估功能中，App 界面能正常显示 AI 返回的包含 JSON 画像的回复，`assessment_interactions` 表也记录了完整的 `ai_response`，但新建的 `assessment_profiles` 表始终为空，画像数据未能持久化。
+*   **初步分析**: 
+    *   怀疑后端 API (`/api/chat/`) 未正确调用保存逻辑。 -> 确认 App 调用的是通用聊天 API，它不直接处理画像保存。
+    *   实施异步方案：创建数据库函数 `extract_and_upsert_assessment_profile` 和触发器 `trigger_extract_profile_on_interaction_insert` 在 `assessment_interactions` 插入新记录后自动处理画像。
+*   **深入排查 (异步方案)**:
+    *   测试异步方案后，`assessment_profiles` 表依然为空。
+    *   检查 Supabase 的 Postgres 日志，发现 `Failed to upsert assessment profile for user_id: ...` 错误日志，表明函数在执行 `UPSERT` 操作时失败。
+    *   推测是权限问题，因为触发器默认以 `SECURITY INVOKER` 模式运行，权限上下文可能不足以写入目标表。
+*   **解决方案**: 
+    *   修改数据库函数 `extract_and_upsert_assessment_profile`，在末尾添加 `SECURITY DEFINER`，使其以定义者（通常是 `postgres` 或具有更高权限的角色）的权限执行，确保有足够的权限写入 `assessment_profiles` 表。
+*   **效果**: 再次测试后，`assessment_profiles` 表成功写入了 AI 生成的用户画像数据，异步处理流程验证通过。
+
+## 12. 问题：模型/Provider 文件存在 Linter 错误 (Missing concrete implementations, Target of URI doesn't exist)
+
+*   **现象**: 在使用 `freezed` 或 `riverpod_generator` 创建模型/Provider 文件后，即使运行 `flutter pub run build_runner build --delete-conflicting-outputs` 并重启 IDE，文件中依然存在 Linter 错误，提示缺少具体实现或找不到生成的 `.freezed.dart` / `.g.dart` 文件。
+*   **初步分析**: 
+    *   怀疑 `build_runner` 未能成功生成代码。
+*   **深入排查**:
+    *   检查 `build_runner` 的详细日志 (`-v` 参数)，发现日志显示 `Succeeded ... with 0 outputs`，表明 `build_runner` 认为没有需要生成的文件。
+    *   检查 `pubspec.yaml` 文件，发现问题：
+        *   `freezed` 和 `freezed_annotation` 的版本号 (`^3.x.x`) 不正确，应为 `^2.x.x` 稳定版本。
+        *   `riverpod_generator` 被错误地放在了 `dependencies` 下，应为 `dev_dependencies`。
+    *   修正上述问题后运行 `flutter pub get`，出现新的版本冲突：`riverpod_generator ^2.6.5` 依赖 `freezed_annotation ^3.0.0`，而我们将其修正为了 `^2.4.1`。
+*   **解决方案**: 
+    *   根据 `flutter pub get` 的错误提示，将 `pubspec.yaml` 中的 `riverpod_generator` 版本降级为 `^2.6.4`，该版本与 `freezed_annotation ^2.4.1` 兼容。
+    *   再次运行 `flutter pub get`。
+    *   最后运行 `flutter pub run build_runner build --delete-conflicting-outputs`。
+*   **效果**: `build_runner` 成功生成了所需的 `.freezed.dart` 和 `.g.dart` 文件，Linter 错误消失。

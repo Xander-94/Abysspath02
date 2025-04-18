@@ -1,0 +1,137 @@
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+_$AssessmentProfileImpl _$$AssessmentProfileImplFromJson(
+        Map<String, dynamic> json) =>
+    _$AssessmentProfileImpl(
+      coreAnalysis: json['core_analysis'] == null
+          ? null
+          : CoreAnalysis.fromJson(
+              json['core_analysis'] as Map<String, dynamic>),
+      behavioralProfile: json['behavioral_profile'] == null
+          ? null
+          : BehavioralProfile.fromJson(
+              json['behavioral_profile'] as Map<String, dynamic>),
+    );
+
+Map<String, dynamic> _$$AssessmentProfileImplToJson(
+        _$AssessmentProfileImpl instance) =>
+    <String, dynamic>{
+      'core_analysis': instance.coreAnalysis,
+      'behavioral_profile': instance.behavioralProfile,
+    };
+
+_$CoreAnalysisImpl _$$CoreAnalysisImplFromJson(Map<String, dynamic> json) =>
+    _$CoreAnalysisImpl(
+      competencies: (json['competencies'] as List<dynamic>?)
+              ?.map((e) => Competency.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+      interestLayers: json['interest_layers'] == null
+          ? null
+          : InterestLayers.fromJson(
+              json['interest_layers'] as Map<String, dynamic>),
+    );
+
+Map<String, dynamic> _$$CoreAnalysisImplToJson(_$CoreAnalysisImpl instance) =>
+    <String, dynamic>{
+      'competencies': instance.competencies,
+      'interest_layers': instance.interestLayers,
+    };
+
+_$CompetencyImpl _$$CompetencyImplFromJson(Map<String, dynamic> json) =>
+    _$CompetencyImpl(
+      name: json['name'] as String,
+      level: json['level'] as String,
+      validation: (json['validation'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const [],
+    );
+
+Map<String, dynamic> _$$CompetencyImplToJson(_$CompetencyImpl instance) =>
+    <String, dynamic>{
+      'name': instance.name,
+      'level': instance.level,
+      'validation': instance.validation,
+    };
+
+_$InterestLayersImpl _$$InterestLayersImplFromJson(Map<String, dynamic> json) =>
+    _$InterestLayersImpl(
+      explicit: (json['explicit'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const [],
+      implicit: (json['implicit'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const [],
+    );
+
+Map<String, dynamic> _$$InterestLayersImplToJson(
+        _$InterestLayersImpl instance) =>
+    <String, dynamic>{
+      'explicit': instance.explicit,
+      'implicit': instance.implicit,
+    };
+
+_$BehavioralProfileImpl _$$BehavioralProfileImplFromJson(
+        Map<String, dynamic> json) =>
+    _$BehavioralProfileImpl(
+      hobbies: (json['hobbies'] as List<dynamic>?)
+              ?.map((e) => Hobby.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+      personality:
+          Personality.fromJson(json['personality'] as Map<String, dynamic>),
+    );
+
+Map<String, dynamic> _$$BehavioralProfileImplToJson(
+        _$BehavioralProfileImpl instance) =>
+    <String, dynamic>{
+      'hobbies': instance.hobbies,
+      'personality': instance.personality,
+    };
+
+_$HobbyImpl _$$HobbyImplFromJson(Map<String, dynamic> json) => _$HobbyImpl(
+      name: json['name'] as String,
+      engagement:
+          Engagement.fromJson(json['engagement'] as Map<String, dynamic>),
+    );
+
+Map<String, dynamic> _$$HobbyImplToJson(_$HobbyImpl instance) =>
+    <String, dynamic>{
+      'name': instance.name,
+      'engagement': instance.engagement,
+    };
+
+_$EngagementImpl _$$EngagementImplFromJson(Map<String, dynamic> json) =>
+    _$EngagementImpl(
+      frequency: json['frequency'] as String?,
+      socialImpact: json['social_impact'] as String?,
+    );
+
+Map<String, dynamic> _$$EngagementImplToJson(_$EngagementImpl instance) =>
+    <String, dynamic>{
+      'frequency': instance.frequency,
+      'social_impact': instance.socialImpact,
+    };
+
+_$PersonalityImpl _$$PersonalityImplFromJson(Map<String, dynamic> json) =>
+    _$PersonalityImpl(
+      strengths: (json['strengths'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const [],
+      conflicts: (json['conflicts'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const [],
+    );
+
+Map<String, dynamic> _$$PersonalityImplToJson(_$PersonalityImpl instance) =>
+    <String, dynamic>{
+      'strengths': instance.strengths,
+      'conflicts': instance.conflicts,
+    };

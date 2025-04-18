@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:abysspath02/core/providers/app_providers.dart' as app;
+import 'package:abysspath02/features/assessment/models/assessment_profile.dart';
+import 'package:abysspath02/features/assessment/providers/assessment_profile_provider.dart';
 import '../../../profile/providers/profile_notifier.dart';
 import '../../../../core/widgets/app_scaffold.dart';
-import '../../../profile/models/profile.dart';
-import '../../../profile/models/competency.dart';
-import '../../../profile/models/interest_graph.dart';
-import '../../../profile/models/behavior.dart';
-import '../../../profile/models/constraints.dart';
-import '../../../profile/models/dynamic_flags.dart';
+import '../../../profile/models/profile.dart' as old_profile_models;
+import '../../../profile/models/competency.dart' as old_profile_models;
+import '../../../profile/models/interest_graph.dart' as old_profile_models;
+import '../../../profile/models/behavior.dart' as old_profile_models;
+import '../../../profile/models/constraints.dart' as old_profile_models;
+import '../../../profile/models/dynamic_flags.dart' as old_profile_models;
 
 /// 用户画像页面 (Stateful to handle lifecycle)
 class PortraitPage extends ConsumerStatefulWidget {
@@ -62,16 +65,18 @@ class _PortraitPageState extends ConsumerState<PortraitPage> with WidgetsBinding
   Widget build(BuildContext context) {
     print('[_PortraitPageState] build called');
     final profileState = ref.watch(app.profileProvider);
+    final assessmentProfileAsync = ref.watch(assessmentProfileProvider);
     print('[_PortraitPageState] Watched profileState: $profileState');
+    print('[_PortraitPageState] Watched assessmentProfileAsync: $assessmentProfileAsync');
 
     return AppScaffold(
       title: '用户画像',
       showBottomNav: true,
-      body: _buildBody(context, profileState),
+      body: _buildBody(context, profileState, assessmentProfileAsync),
     );
   }
 
-  Widget _buildBody(BuildContext context, ProfileState state) {
+  Widget _buildBody(BuildContext context, ProfileState state, AsyncValue<AssessmentProfile?> assessmentProfileAsync) {
     if (state.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -84,7 +89,6 @@ class _PortraitPageState extends ConsumerState<PortraitPage> with WidgetsBinding
 
     final profile = state.profile!;                   
     final theme = Theme.of(context);
-
 
      return ListView(                             
       padding: const EdgeInsets.all(16.0),
@@ -104,6 +108,10 @@ class _PortraitPageState extends ConsumerState<PortraitPage> with WidgetsBinding
         const Divider(height: 24),
 
         _buildConstraintsSection(context, profile.constraints),
+        
+        const Divider(height: 24),
+        _buildAiAssessmentCard(context, assessmentProfileAsync),
+
         if (state.error != null) 
             Padding(
               padding: const EdgeInsets.only(top: 16.0),
@@ -143,7 +151,7 @@ class _PortraitPageState extends ConsumerState<PortraitPage> with WidgetsBinding
   }
 
   /// 构建能力与目标区块
-  Widget _buildCompetencySection(BuildContext context, Competency? competency, DynamicFlags? flags) {
+  Widget _buildCompetencySection(BuildContext context, old_profile_models.Competency? competency, old_profile_models.DynamicFlags? flags) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -156,7 +164,7 @@ class _PortraitPageState extends ConsumerState<PortraitPage> with WidgetsBinding
   }
 
   /// 构建兴趣方向区块
-  Widget _buildInterestSection(BuildContext context, InterestGraph? interestGraph) {
+  Widget _buildInterestSection(BuildContext context, old_profile_models.InterestGraph? interestGraph) {
     List<String>? primaryInterests = interestGraph?.primaryInterests?.keys.toList();
     List<String>? crossDomains = interestGraph?.crossDomainLinks?.keys.toList();
 
@@ -171,7 +179,7 @@ class _PortraitPageState extends ConsumerState<PortraitPage> with WidgetsBinding
   }
 
   /// 构建学习偏好区块
-  Widget _buildBehaviorSection(BuildContext context, Behavior? behavior) {
+  Widget _buildBehaviorSection(BuildContext context, old_profile_models.Behavior? behavior) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -185,7 +193,7 @@ class _PortraitPageState extends ConsumerState<PortraitPage> with WidgetsBinding
   }
 
   /// 构建学习条件区块
-  Widget _buildConstraintsSection(BuildContext context, Constraints? constraints) {
+  Widget _buildConstraintsSection(BuildContext context, old_profile_models.Constraints? constraints) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -194,6 +202,58 @@ class _PortraitPageState extends ConsumerState<PortraitPage> with WidgetsBinding
         _buildInfoList('可接受投入', constraints?.acceptedInvestment),
         _buildInfoList('偏好学习时段', constraints?.preferredLearningTimes),
       ],
+    );
+  }
+
+  Widget _buildAiAssessmentCard(BuildContext context, AsyncValue<AssessmentProfile?> assessmentProfileAsync) {
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'AI 对话评估洞察',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 12),
+            assessmentProfileAsync.when(
+              loading: () => const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+              error: (err, stack) => Text('加载 AI 评估失败: $err', style: TextStyle(color: Colors.red.shade700)),
+              data: (aiProfile) {
+                if (aiProfile == null) {
+                  return const Text('暂无 AI 评估数据。');
+                }
+                final competencies = aiProfile.coreAnalysis?.competencies.map((c) => c.name).toList() ?? [];
+                final strengths = aiProfile.behavioralProfile?.personality?.strengths ?? [];
+                
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (competencies.isNotEmpty)
+                      Text('AI 分析的核心技能: ${competencies.join(', ')}'),
+                    const SizedBox(height: 8),
+                    if (strengths.isNotEmpty)
+                      Text('AI 分析的性格优点: ${strengths.join(', ')}'),
+                    const SizedBox(height: 16),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () {
+                          context.push('/assessment/result');
+                        },
+                        child: const Text('查看完整报告 >'),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
