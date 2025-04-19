@@ -7,13 +7,17 @@ import httpx
 import os
 import logging
 from dotenv import load_dotenv
-from routers import chat, assessment, learning_path
+from routers import chat, assessment, learning_path_router 
 from datetime import datetime
 import json
 from services.deepseek_service import deepseek_service, DeepseekError
 from fastapi.encoders import jsonable_encoder
 import sys
 from pathlib import Path
+from contextlib import asynccontextmanager
+from database import get_supabase_client
+from config import AppConfig
+from dependencies import setup_dependencies
 
 # 配置日志
 logging.basicConfig(
@@ -38,10 +42,32 @@ if not DEEPSEEK_API_KEY:
     sys.exit(1)
 logger.info(f"DEEPSEEK_API_KEY: {DEEPSEEK_API_KEY[:8]}...")
 
+config = AppConfig()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 应用启动时执行
+    logger.info("应用启动中...")
+    try: # 尝试获取客户端以验证配置
+        get_supabase_client() 
+        logger.info("Supabase 配置验证通过")
+    except ValueError as e:
+        logger.error(f"Supabase 配置错误: {e}")
+        # 可以选择在这里退出应用或抛出更严重的错误
+        # sys.exit(1) 
+    setup_dependencies() # 设置依赖注入
+    logger.info("依赖已设置")
+    yield
+    # 应用关闭时执行
+    logger.info("应用关闭中...")
+    # await close_supabase_client() # 移除调用 (Supabase 客户端通常不需要手动关闭)
+    logger.info("应用已关闭")
+
 app = FastAPI(
     title="AbyssPath API",
     description="AI驱动的个性化学习路径生成器",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # 配置CORS和响应编码
@@ -138,9 +164,10 @@ class CustomJSONResponse(JSONResponse):
         ).encode("utf-8")
 
 # 注册路由
-app.include_router(chat.router)
-app.include_router(assessment.router)
-app.include_router(learning_path.router)
+# 为业务路由添加 /api 前缀
+app.include_router(chat.router, prefix="/api")
+app.include_router(assessment.router, prefix="/api")
+app.include_router(learning_path_router.router, prefix="/api")
 
 @app.get("/")
 async def root():

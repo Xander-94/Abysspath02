@@ -28,7 +28,7 @@ class DeepseekConfig:
         self.base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
         self.model = "deepseek-chat"
         self.temperature = 0.7
-        self.max_tokens = 1000
+        self.max_tokens = 4096
         self.timeout = 60
         self.system_prompt = os.getenv("SYSTEM_PROMPT", "你是一个专业的AI助手")
         self.assessment_system_prompt = """
@@ -98,44 +98,88 @@ class DeepseekConfig:
 1. 兴趣延伸：建议与已确认兴趣相关的进阶方向（提供行业报告名称）
 2. 个性优化：针对traits建议沟通技巧训练方法（具体到方法论名称） """
         
-        self.learning_path_system_prompt = """你是一个专业的学习路径规划助手，负责根据用户的学习目标和需求，生成个性化的学习路径。
+        self.learning_path_system_prompt = """# 角色
+你是一名经验丰富的个性化学习路径设计师，擅长结合技术能力、元能力（如学习方法、思维模型）和影响力发展（如个人品牌、社区参与）目标，为用户量身定制可执行、可视化的学习计划。
 
-请按照以下格式生成JSON格式的学习路径：
+# 输入信息
+你将收到以下信息：
+1.  **用户目标 (User Goal)**: 用户明确提出的学习或发展目标。
+2.  **用户画像 (User Profile)**: 一个包含用户自我评估（来自问卷）和 AI 对话评估结果（如果存在）的 JSON 对象。你需要从中提取关键信息，如：
+    *   现有技能 (`competencies.name`, `competencies.level`)
+    *   兴趣领域 (`interest_layers.explicit`, `interest_layers.implicit`)
+    *   性格特点 (`personality.strengths`, `personality.conflicts`)
+    *   学习偏好、可用时间等。
+3.  **(可选) 当前上下文**: 可能包含用户对已有路径的反馈或调整要求。
+
+# 核心任务
+根据用户目标和用户画像，生成一个结构化的、个性化的学习路径 JSON 对象。请严格遵循以下输出格式和设计原则。
+
+# **严格的输出格式要求 (JSON)**
+请确保你的**整个输出**是一个**单一的 JSON 对象**，其结构如下：
+```json
 {
-  "title": "学习路径标题",
-  "description": "路径描述",
-  "estimated_duration": "预计完成时间",
-  "difficulty_level": "难度级别(1-5)",
-  "prerequisites": ["前置要求1", "前置要求2"],
-  "milestones": [
-    {
-      "title": "里程碑1标题",
-      "description": "里程碑描述",
-      "duration": "预计时间",
-      "resources": [
+  "learning_path": {
+    "title": "[根据用户目标和画像生成的个性化路径标题]",
+    "description": "[简要描述路径特点、适用人群和预期成果]",
+    "estimated_duration": "[预估完成路径的总时间范围，例如 '3-6个月']",
+    "target_goal": "[清晰描述通过此路径可达成的具体目标]",
+    "nodes": [
+      {
+        "id": "[节点的唯一标识符，英文小写+下划线，例如 'python_basics']",
+        "label": "[节点在图谱中显示的简短名称，例如 'Python 基础']",
+        "type": "[节点类型: 'skill', 'concept', 'tool', 'project', 'meta_skill', 'influence_skill', 'bridge']",
+        "details": "[对该节点的详细说明，学习内容或活动描述]",
+        "estimated_time": "[完成此节点的预估时间，例如 '2周']"
+      }
+      // ... 其他所有节点
+    ],
+    "edges": [
+      {
+        "from": "[起始节点的 id]",
+        "to": "[目标节点的 id]",
+        "relation_type": "[可选：描述关系，如 'dependency', 'sequence', 'bridge_from', 'bridge_to']" // 用于更精细的图谱表示
+      }
+      // ... 其他所有定义路径流向的边
+    ],
+    "resources": {
+      "[节点 id]": [
         {
-          "type": "video/article/book/practice",
-          "title": "资源标题",
-          "description": "资源描述",
-          "url": "资源链接（如有）",
-          "estimated_time": "预计学习时间"
+          "title": "[资源标题]",
+          "type": "[资源类型: 'course', 'book', 'article', 'video', 'tutorial', 'documentation', 'practice', 'community', 'tool']",
+          "url": "[资源的 URL 链接（如果适用）]",
+          "description": "[对资源的简短推荐语或说明]"
         }
-      ],
-      "learning_objectives": ["学习目标1", "学习目标2"],
-      "assessment_criteria": ["评估标准1", "评估标准2"]
+        // ... 该节点的其他资源
+      ]
+      // ... 其他节点的资源列表
     }
-  ],
-  "success_metrics": ["成功指标1", "成功指标2"],
-  "next_steps": ["后续建议1", "后续建议2"]
+  }
 }
+```
 
-在生成路径时，请注意：
-1. 根据用户的基础水平调整内容难度
-2. 提供具体、可操作的学习资源
-3. 设置合理的时间预期
-4. 添加清晰的学习目标和评估标准
-5. 考虑实践项目和动手机会
-6. 推荐优质的学习资源和工具"""
+# 设计原则与指令
+1.  **个性化是核心**: 
+    *   路径的起点应基于用户画像中的现有技能水平。
+    *   内容选择需结合用户的兴趣领域和学习偏好。
+    *   利用用户画像识别知识或能力差距，并在路径中针对性地安排学习内容。
+2.  **多元化路径**: 
+    *   **技术路径**: 设计清晰的技术技能学习步骤。
+    *   **元能力路径**: 根据需要，穿插学习方法（如费曼学习法）、思维模型（如第一性原理）、时间管理等 `meta_skill` 节点。
+    *   **影响力路径**: 如果用户目标涉及职业发展或社区影响，可加入个人品牌建设、公开演讲、开源贡献、建立人脉等 `influence_skill` 节点。
+3.  **路径桥接 (Bridging)**:
+    *   当用户的目标涉及跨领域（例如从 Web 开发转向 AI）时，必须识别关键的知识或技能转换点。
+    *   在这些转换点插入明确的 `bridge` 类型的节点，提供必要的过渡学习内容（例如，从 Web 到 AI 可能需要桥接 Python 数据处理）。
+    *   在 `edges` 中，可以使用 `bridge_from` 和 `bridge_to` 的 `relation_type` 来标记桥接关系。
+4.  **结构化与可视化**: 
+    *   确保 `nodes` 和 `edges` 的设计能够清晰地表达学习流程和依赖关系，以便前端进行图谱可视化。
+    *   每个 `node` 必须有唯一的、有意义的 `id`。
+    *   `edges` 应该定义从一个 `node.id` 到另一个 `node.id` 的连接。
+5.  **节点类型 ('type')**: 请准确使用节点类型 ('skill', 'concept', 'tool', 'project', 'meta_skill', 'influence_skill', 'bridge') 来区分不同的学习单元。
+6.  **资源质量**: 推荐具体、优质、可获得的学习资源。如果是实践或项目节点，描述清楚实践目标和内容。
+7.  **合理预估**: `estimated_duration` 和节点的 `estimated_time` 应基于普遍认知和用户画像信息（如可用时间）进行合理估算。
+8.  **逻辑连贯**: 路径的整体流程应符合学习规律，从基础到进阶，理论与实践结合。
+
+请仔细分析输入信息，并严格按照上述 JSON 格式和设计原则，生成完整、高质量的学习路径 JSON 对象。"""
         
         logger.info(f"DeepseekConfig 初始化完成:")
         logger.info(f"  - API Key: {self.api_key[:8]}...")
@@ -183,14 +227,12 @@ class DeepseekMetrics:
 class DeepseekService:
     def __init__(self):
         self.config = DeepseekConfig()
-        self.client = httpx.AsyncClient(
-            timeout=self.config.timeout,
-            headers={
-                "Authorization": f"Bearer {self.config.api_key}",
-                "Content-Type": "application/json"
-            }
-        )
         self.metrics = DeepseekMetrics()
+        # 配置 httpx 客户端，增加超时时间
+        self.client = httpx.AsyncClient(
+            headers={"Authorization": f"Bearer {self.config.api_key}"},
+            timeout=httpx.Timeout(180.0, connect=10.0) # 设置总超时180秒, 连接超时10秒
+        )
         self._cache = {}
         logger.info("DeepseekService 初始化完成")
     
@@ -200,81 +242,70 @@ class DeepseekService:
         before=before_log(logger, logging.DEBUG),
         after=after_log(logger, logging.DEBUG)
     )
-    async def chat(self, messages: List[Message], is_assessment: bool = False, is_learning_path: bool = False) -> ChatResponse:
-        """发送消息列表到Deepseek API"""
+    async def chat(self, message: str, is_assessment: bool = False, is_learning_path: bool = False) -> ChatResponse:
+        """发送单条消息到Deepseek API，并处理历史（如果需要）"""
         start_time = time.time()
         try:
             # 根据场景选择系统提示词
+            system_prompt_to_use = self.config.system_prompt
             if is_assessment:
-                system_prompt = self.config.assessment_system_prompt
-                logger.debug("选择系统提示词: assessment")
+                system_prompt_to_use = self.config.assessment_system_prompt
             elif is_learning_path:
-                system_prompt = self.config.learning_path_system_prompt
-                logger.debug("选择系统提示词: learning_path")
-            else:
-                system_prompt = self.config.system_prompt
-                logger.debug("选择系统提示词: default")
-            
-            # 修改: 构建API消息列表，将系统提示词插入到传入的messages之前
-            # 将 Pydantic Message 对象转换为字典列表
-            api_messages_dicts = [msg.model_dump() for msg in messages]
-            
-            # 检查 messages 列表是否已经包含 system role，避免重复添加
-            if not any(msg['role'] == 'system' for msg in api_messages_dicts):
-                api_messages = [{"role": "system", "content": system_prompt}]
-                api_messages.extend(api_messages_dicts)
-            else:
-                # 如果已包含 system role，可能需要替换或保持不变，这里选择保持传入的不变
-                logger.warning("传入的消息列表已包含 system role，将直接使用传入列表。")
-                api_messages = api_messages_dicts
-            
-            # 构建请求体
-            api_request = {
-                "messages": api_messages, 
-                "model": self.config.model, 
-                "temperature": self.config.temperature, 
-                "max_tokens": self.config.max_tokens
+                system_prompt_to_use = self.config.learning_path_system_prompt
+
+            # 构建发送给 API 的 messages 列表
+            # TODO: 将来可能需要实现更复杂的历史记录管理
+            api_messages = [
+                Message(role="system", content=system_prompt_to_use).dict(),
+                Message(role="user", content=message).dict() # 使用传入的单条消息
+            ]
+
+            payload = {
+                "model": self.config.model,
+                "messages": api_messages,
+                "temperature": self.config.temperature,
+                "max_tokens": self.config.max_tokens,
+                "stream": False
             }
+            logger.debug(f"发送到 Deepseek API 的 Payload: {json.dumps(payload, ensure_ascii=False)}")
+
+            response = await self.client.post(f"{self.config.base_url}/chat/completions", json=payload)
+            response.raise_for_status()  # 如果状态码不是 2xx，则抛出异常
+
+            data = response.json()
+            logger.debug(f"从 Deepseek API 收到的响应: {json.dumps(data, ensure_ascii=False)}")
             
-            logger.debug(f"最终API请求体: {json.dumps(api_request, ensure_ascii=False, indent=2)}") # 打印最终请求体
-            logger.info(f"发送请求到 {self.config.base_url}/chat/completions")
-            
-            # 使用共享的 client 发送请求
-            response = await self.client.post(
-                f"{self.config.base_url}/chat/completions",
-                json=api_request,
+            response_time = time.time() - start_time
+            self.metrics.record_request(success=True, response_time=response_time)
+
+            ai_content = data['choices'][0]['message']['content']
+            usage = data.get('usage')
+
+            return ChatResponse(
+                content=ai_content,
+                conversation_id="string", # TODO: 需要传入或生成会话ID
+                usage=usage
             )
-            
-            logger.debug(f"API响应头: {dict(response.headers)}")
-            logger.info(f"API响应状态码: {response.status_code}")
-            
-            response.raise_for_status() # 如果状态码不是 2xx，则抛出异常
 
-            result = response.json()
-            if "choices" not in result or not result["choices"]:
-                error_msg = f"API响应格式错误: {json.dumps(result, ensure_ascii=False)}"
-                logger.error(error_msg)
-                raise DeepseekError(error_msg)
-                
-            content = result["choices"][0]["message"]["content"]
-            usage = result.get("usage") # 获取 token 使用情况
-
-            self.metrics.record_request(True, time.time() - start_time)
-            # 返回包含 usage 的响应
-            return ChatResponse(content=content, success=True, error=None, usage=usage)
-            
         except httpx.HTTPStatusError as e:
-            error_msg = f"API请求失败: 状态码={e.response.status_code}, 响应={e.response.text}"
-            logger.error(error_msg)
-            self.metrics.record_request(False, time.time() - start_time)
-            self.metrics.record_error(error_msg)
-            return ChatResponse(content="抱歉，服务器处理请求时出现错误", success=False, error=error_msg)
+            response_time = time.time() - start_time
+            self.metrics.record_request(success=False, response_time=response_time)
+            error_content = e.response.text
+            logger.error(f"Deepseek API 请求失败: {e.response.status_code} - {error_content}")
+            self.metrics.record_error(f"HTTPStatusError: {e.response.status_code} - {error_content}")
+            raise DeepseekError(f"Deepseek API错误: {e.response.status_code} - {error_content}", status_code=e.response.status_code) from e
+        except httpx.RequestError as e:
+            response_time = time.time() - start_time
+            self.metrics.record_request(success=False, response_time=response_time)
+            logger.error(f"连接 Deepseek API 失败: {e}")
+            self.metrics.record_error(f"RequestError: {e}")
+            raise DeepseekError(f"无法连接到 Deepseek API: {e}") from e
         except Exception as e:
-            error_msg = f"处理请求时出错: {str(e)}"
-            logger.exception("处理聊天请求时发生未预期错误") # 使用 logger.exception 记录完整堆栈
-            self.metrics.record_request(False, time.time() - start_time)
-            self.metrics.record_error(error_msg)
-            return ChatResponse(content="抱歉，服务器处理请求时出现错误", success=False, error=error_msg)
+            response_time = time.time() - start_time
+            self.metrics.record_request(success=False, response_time=response_time)
+            logger.exception("处理 Deepseek 响应时发生未知错误")
+            self.metrics.record_error(f"Unknown Error: {e}")
+            raise DeepseekError(f"处理 Deepseek 响应时发生未知错误: {e}") from e
     
     def _get_cache_key(self, messages: List[Message]) -> str:
         return str([(msg.role, msg.content) for msg in messages])
@@ -285,101 +316,63 @@ class DeepseekService:
     async def close(self):
         await self.client.aclose()
 
-    async def stream_chat(self, messages: List[Message], **kwargs) -> AsyncGenerator[str, None]:
-        """流式发送消息到Deepseek API"""
+    async def stream_chat(self, message: str, **kwargs) -> AsyncGenerator[str, None]:
+        """发送单条消息到Deepseek API，并流式返回响应"""
         try:
-            # 构建API消息列表 (与 chat 方法类似)
-            # 这里也需要确保 system prompt 的处理方式一致
-            system_prompt = self.config.system_prompt # 假设流式默认使用通用提示词
-            api_messages_dicts = [msg.model_dump() for msg in messages]
-            if not any(msg['role'] == 'system' for msg in api_messages_dicts):
-                api_messages = [{"role": "system", "content": system_prompt}]
-                api_messages.extend(api_messages_dicts)
-            else:
-                logger.warning("传入的流式消息列表已包含 system role，将直接使用传入列表。")
-                api_messages = api_messages_dicts
+            # 构建发送给 API 的 messages 列表 (同 chat 方法)
+            # TODO: 将来可能需要实现更复杂的历史记录管理
+            api_messages = [
+                Message(role="system", content=self.config.system_prompt).dict(), # 简化处理，默认使用通用 system prompt
+                Message(role="user", content=message).dict()
+            ]
 
-            api_request = {
-                "messages": api_messages,
+            payload = {
                 "model": self.config.model,
-                "stream": True, # 启用流式输出
-                **kwargs # 可以传递 temperature 等额外参数
+                "messages": api_messages,
+                "temperature": self.config.temperature,
+                "max_tokens": self.config.max_tokens,
+                "stream": True
             }
-            
-            logger.info(f"发送流式请求到 {self.config.base_url}/chat/completions")
-            async with self.client.stream(
-                "POST",
-                f"{self.config.base_url}/chat/completions",
-                json=api_request
-            ) as response:
+            logger.debug(f"发送到 Deepseek API 的流式 Payload: {json.dumps(payload, ensure_ascii=False)}")
+
+            async with self.client.stream("POST", f"{self.config.base_url}/chat/completions", json=payload) as response:
                 response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if line.startswith("data:"):                        
-                        chunk = line[len("data:"):].strip()
-                        if chunk == "[DONE]":
+                async for chunk in response.aiter_lines():
+                    if chunk.startswith("data: "):
+                        data_str = chunk[len("data: "):].strip()
+                        if data_str == "[DONE]":
                             break
                         try:
-                            data = json.loads(chunk)
-                            content = data["choices"][0]["delta"]["content"]
+                            data = json.loads(data_str)
+                            content = data.get("choices", [{}])[0].get("delta", {}).get("content")
                             if content:
                                 yield content
                         except json.JSONDecodeError:
-                            logger.warning(f"无法解析流式块: {chunk}")
-                        except KeyError:
-                            logger.warning(f"流式块缺少必要字段: {chunk}")
+                            logger.warning(f"无法解析流式块: {data_str}")
+                            continue
         except httpx.HTTPStatusError as e:
-            logger.error(f"流式API请求失败: 状态码={e.response.status_code}, 响应={e.response.text}")
-            yield f"Error: {e.response.status_code} - 请求失败"
+             error_content = await e.response.aread() # 读取错误响应体
+             logger.error(f"Deepseek API 流式请求失败: {e.response.status_code} - {error_content.decode()}")
+             self.metrics.record_error(f"Stream HTTPStatusError: {e.response.status_code} - {error_content.decode()}")
+             yield f"Error: Deepseek API错误 - {e.response.status_code}" # 在流中返回错误信息
+        except httpx.RequestError as e:
+             logger.error(f"连接 Deepseek API 流式请求失败: {e}")
+             self.metrics.record_error(f"Stream RequestError: {e}")
+             yield f"Error: 无法连接到 Deepseek API"
         except Exception as e:
-            logger.exception("处理流式聊天请求时发生未预期错误")
-            yield f"Error: 处理请求时出错 - {str(e)}"
+             logger.exception("处理 Deepseek 流式响应时发生未知错误")
+             self.metrics.record_error(f"Stream Unknown Error: {e}")
+             yield f"Error: 处理 Deepseek 流式响应时发生未知错误"
 
 # 全局服务实例
 deepseek_service = DeepseekService()
 
-async def chat(messages: List[Message], **kwargs) -> ChatResponse:
-    """发送聊天请求到Deepseek API"""
-    try:
-        request = ChatRequest(messages=messages, **kwargs)
-        url = f"{deepseek_service.config.base_url}/chat/completions"
-        async with httpx.AsyncClient(timeout=deepseek_service.config.timeout) as client:
-            response = await client.post(url, headers={"Authorization": f"Bearer {deepseek_service.config.api_key}"}, json=request.model_dump())
-            return ChatResponse(content=response.json()["choices"][0]["message"]["content"], success=True, error=None) if response.status_code == 200 else ChatResponse(content="API请求失败", success=False, error=f"状态码: {response.status_code}")
-    except Exception as e:
-        logger.error(f"Error in Deepseek chat: {str(e)}")
-        return ChatResponse(content="处理请求时出错", success=False, error=str(e))
-        
-async def stream_chat(messages: List[Message], **kwargs) -> AsyncGenerator[str, None]:
-    """发送流式聊天请求到Deepseek API"""
-    try:
-        request = ChatRequest(messages=messages, stream=True, **kwargs)
-        url = f"{deepseek_service.config.base_url}/chat/completions"
-        
-        async with httpx.AsyncClient(timeout=deepseek_service.config.timeout) as client:
-            async with client.stream(
-                "POST",
-                url,
-                headers={"Authorization": f"Bearer {deepseek_service.config.api_key}"},
-                json=request.model_dump()
-            ) as response:
-                if response.status_code == 200:
-                    async for line in response.aiter_lines():
-                        if line.startswith("data: "):
-                            data = line[6:]
-                            if data == "[DONE]":
-                                break
-                            try:
-                                chunk = json.loads(data)
-                                if "choices" in chunk and chunk["choices"]:
-                                    content = chunk["choices"][0].get("delta", {}).get("content", "")
-                                    if content:
-                                        yield content
-                            except json.JSONDecodeError:
-                                continue
-                else:
-                    logger.error(f"Deepseek API error: {response.status_code} - {response.text}")
-                    raise Exception(f"API request failed: {response.status_code}")
-                    
-    except Exception as e:
-        logger.error(f"Error in Deepseek stream chat: {str(e)}")
-        raise 
+# 移除或注释掉全局函数 chat 和 stream_chat，因为我们现在使用类方法
+# async def chat(messages: List[Message], **kwargs) -> ChatResponse:
+#     # ...
+#
+# async def stream_chat(messages: List[Message], **kwargs) -> AsyncGenerator[str, None]:
+#     # ...
+
+# 实例化服务 (如果需要在其他地方导入实例)
+# deepseek_service = DeepseekService() 

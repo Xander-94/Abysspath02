@@ -16,6 +16,9 @@ def get_supabase_client() -> Client:
     url = os.getenv("SUPABASE_URL")
     key = os.getenv("SUPABASE_KEY")
     
+    # 在使用前打印获取到的 URL，用于调试
+    logger.debug(f"从环境变量获取的 SUPABASE_URL: '{url}'") 
+    
     if not url or not key:
         logger.error("Supabase配置缺失，请检查环境变量")
         raise ValueError("缺少必要的Supabase配置，请检查SUPABASE_URL和SUPABASE_KEY")

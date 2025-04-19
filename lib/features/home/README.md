@@ -2,21 +2,16 @@
 
 ## 功能说明
 - 首页展示
-- 数据统计
-- 快捷入口
-- 消息通知
-- 个人中心
+- 数据统计 (例如学习进度概览)
+- 快捷入口 (例如开始新评估、继续学习路径)
+- 消息通知 (如果需要)
+- 个人中心 (可能导航至 Profile 页面)
 
-## 目录结构
-- data/
-  - datasources/  # 数据源
-  - models/       # 数据模型
-  - repositories/ # 仓库实现
-- domain/
-  - entities/     # 实体
-  - repositories/ # 仓库接口
-  - usecases/     # 用例
-- presentation/
-  - bloc/         # 状态管理
-  - pages/        # 页面
-  - widgets/      # 组件 
+## 目录结构 (当前简化结构)
+*   **pages/**: 包含首页 UI 页面 (例如 `home_page.dart`)。
+*   **providers/**: 可能包含首页特定的状态管理 Provider。
+*   **services/**: 可能包含获取首页所需数据的服务。
+*   **widgets/**: 包含首页特有的、可复用的 UI 组件。
+
+## 说明
+作为应用的主要入口点和信息聚合页面。 

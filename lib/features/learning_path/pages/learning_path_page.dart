@@ -17,6 +17,7 @@ class LearningPathPage extends ConsumerStatefulWidget {
 class _LearningPathPageState extends ConsumerState<LearningPathPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _inputController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   
   @override
   void initState() {
@@ -27,12 +28,31 @@ class _LearningPathPageState extends ConsumerState<LearningPathPage> {
   @override
   void dispose() {
     _inputController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  // 滚动到底部 (与评估页面一致)
+  void _scrollToBottom() { 
+    if (_scrollController.hasClients) {
+      Future.delayed(const Duration(milliseconds: 100), () { // 延迟确保渲染完成
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent, // 滚动到底部
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(learningPathProvider);
+    // 监听消息长度变化
+    ref.listen(learningPathProvider.select((s) => s.messages.length), (_, __) { 
+      // 在帧结束后调用滚动，确保列表已更新
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    });
 
     return AppScaffold(
       scaffoldKey: _scaffoldKey,
@@ -45,10 +65,7 @@ class _LearningPathPageState extends ConsumerState<LearningPathPage> {
         IconButton(
           icon: const Icon(Icons.add_circle_outline),
           onPressed: () async {
-            final newPath = await ref.read(learningPathProvider.notifier).createNewConversation();
-            if (mounted && newPath != null) {
-              await ref.read(learningPathProvider.notifier).selectPath(newPath['id']);
-            }
+            await ref.read(learningPathProvider.notifier).createNewConversation();
           },
         ),
       ],
@@ -115,6 +132,7 @@ class _LearningPathPageState extends ConsumerState<LearningPathPage> {
           ),
           Expanded(
             child: ListView.builder(
+              key: ValueKey(state.conversations.length),
               padding: const EdgeInsets.all(8),
               itemCount: state.conversations.length,
               itemBuilder: (context, index) {
@@ -200,18 +218,19 @@ class _LearningPathPageState extends ConsumerState<LearningPathPage> {
     );
   }
 
-  // 对话面板
+  // 对话面板 - 仿照评估页面重构
   Widget _buildChatPanel() {
     final state = ref.watch(learningPathProvider);
     
-    if (state.currentPathId == null || state.messages.isEmpty) {
-      return Container(
-        color: const Color(0xFFF5F5F5),
-        child: ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: 1,
-          itemBuilder: (context, index) {
-            return Column(
+    // !! 修改判断逻辑 !!
+    // 1. 如果当前没有选中的路径ID，则显示欢迎/空状态提示
+    if (state.currentPathId == null) {
+      // (如果需要区分初次加载和无路径，可以结合 state.isLoading)
+       return Container(
+          color: const Color(0xFFF5F5F5),
+          child: Center( // 使用 Center 包裹欢迎信息
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const SizedBox(height: 40),
@@ -231,67 +250,51 @@ class _LearningPathPageState extends ConsumerState<LearningPathPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '我可以帮你规划学习路径、跟踪学习进度',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: AppColors.textSecondary,
-                  ),
+                  '输入你的学习目标，开始规划吧！',
+                  style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
                   textAlign: TextAlign.center,
                 ),
-              ],
-            );
-          },
-        ),
-      );
-    }
-
-    return Container(
-      color: const Color(0xFFF5F5F5),
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        reverse: false,
-        itemCount: state.messages.length,
-        itemBuilder: (context, index) {
-          final message = state.messages[index];
-          final isUser = message['role'] == 'user';
-
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Row(
-              mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-              children: [
-                if (!isUser) ...[
-                  CircleAvatar(
-                    backgroundColor: AppColors.primary,
-                    child: const Icon(Icons.route, color: Colors.white),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                Flexible(
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isUser ? AppColors.primary : Colors.white,
-                      borderRadius: BorderRadius.circular(16),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                    onPressed: () async {
+                      // 触发创建新会话的动作，但不发送消息
+                      await ref.read(learningPathProvider.notifier).createNewConversation();
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('或先创建新路径'),
+                    style: ElevatedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.primary,
                     ),
-                    child: Text(
-                      message['content'],
-                      style: TextStyle(
-                        color: isUser ? Colors.white : AppColors.textPrimary,
-                      ),
-                    ),
-                  ),
                 ),
-                if (isUser) ...[
-                  const SizedBox(width: 8),
-                  CircleAvatar(
-                    backgroundColor: AppColors.primary,
-                    child: const Icon(Icons.person, color: Colors.white),
-                  ),
-                ],
+                const Spacer(), // 推到底部
               ],
             ),
-          );
+          ),
+       );
+    }
+    
+    // 2. 如果有选中路径ID，则总是尝试显示消息列表
+    //    即使 messages 为空，ListView.builder 也会处理（显示为空列表）
+    //    可以在首次加载时显示菊花图
+    if (state.isLoading && state.messages.isEmpty) { 
+        return const Center(child: CircularProgressIndicator());
+    }
+    
+    // 3. 显示消息列表
+    return Container(
+      color: const Color(0xFFF5F5F5), // 聊天背景色
+      child: ListView.builder(
+        controller: _scrollController, // 关联 ScrollController
+        padding: const EdgeInsets.all(16.0),
+        itemCount: state.messages.length + (state.isLoading ? 1 : 0), // 如果加载中，多加一项显示加载指示
+        itemBuilder: (context, index) {
+          if (state.isLoading && index == state.messages.length) {
+             // 在列表末尾显示加载指示器
+             return _buildTypingIndicator(); 
+          }
+          final message = state.messages[index];
+          return ChatMessageWidget(messageData: message); 
         },
       ),
     );
@@ -357,6 +360,9 @@ class _LearningPathPageState extends ConsumerState<LearningPathPage> {
     _inputController.clear();
     try {
       await ref.read(learningPathProvider.notifier).sendMessage(message);
+      
+      print("Refreshed learningPathProvider after sendMessage on page");
+
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -368,5 +374,89 @@ class _LearningPathPageState extends ConsumerState<LearningPathPage> {
         );
       }
     }
+  }
+
+  // AI 输入指示器 (需要您提供或实现)
+  Widget _buildTypingIndicator() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          CircleAvatar(child: Icon(Icons.computer)), // AI 头像
+          SizedBox(width: 8),
+          // 这里可以放一个跳动的小点动画等
+          CircularProgressIndicator(strokeWidth: 2.0), 
+        ],
+      ),
+    );
+  }
+}
+
+// 假设的 ChatMessageWidget (需要您提供或实现)
+// 它需要能处理 state.messages 中 Map 的 'role' 和 'content' 等字段
+class ChatMessageWidget extends StatelessWidget {
+  final Map<String, dynamic> messageData;
+
+  const ChatMessageWidget({Key? key, required this.messageData}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    bool isUser = messageData['role'] == 'user';
+    final messageContent = messageData['content'] ?? '';
+    // final metadata = messageData['metadata'] as Map<String, dynamic>?; // 不再需要读取 metadata
+    // bool isPathCreatedMessage = metadata?['type'] == 'path_created'; 
+
+    // *** 修改：直接读取数据库返回的 is_creation_confirmation 字段 ***
+    bool isPathCreatedMessage = messageData['is_creation_confirmation'] == true;
+    // *** 获取 pathId 用于按钮导航，需要确保 messageData 包含 path_id ***
+    String? pathIdForButton = messageData['path_id'] as String?;
+
+    // 构建消息内容 Widget
+    Widget messageTextWidget = Text(
+      messageContent,
+      style: TextStyle(color: isUser ? Colors.white : AppColors.textPrimary)
+    );
+
+    // 如果是路径创建确认消息，添加按钮
+    List<Widget> children = [messageTextWidget];
+    if (isPathCreatedMessage && pathIdForButton != null) {
+      children.add(const SizedBox(height: 8)); // 添加间距
+      children.add(
+        ElevatedButton.icon(
+          onPressed: () {
+            // !! 使用正确的路由路径 !!
+            context.push('/learning-path/$pathIdForButton');
+            print('Navigating to detail for path: $pathIdForButton');
+          },
+          icon: const Icon(Icons.visibility, size: 16),
+          label: const Text('查看详情'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: isUser ? Colors.white : AppColors.primary, // 按钮颜色反转
+            foregroundColor: isUser ? AppColors.primary : Colors.white, // 文字颜色反转
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            textStyle: const TextStyle(fontSize: 14),
+          ),
+        )
+      );
+    }
+
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+        padding: const EdgeInsets.all(12.0),
+        decoration: BoxDecoration(
+          color: isUser ? AppColors.primary : Colors.white,
+          borderRadius: BorderRadius.circular(16.0),
+          boxShadow: isUser ? [] : [BoxShadow(color: Colors.grey.withOpacity(0.2), spreadRadius: 1, blurRadius: 3)],
+        ),
+        child: Column(
+           crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+           mainAxisSize: MainAxisSize.min, // 让 Column 包裹内容
+           children: children,
+        )
+      ),
+    );
   }
 }

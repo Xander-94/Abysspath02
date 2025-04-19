@@ -1,0 +1,163 @@
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+_$LearningPathImpl _$$LearningPathImplFromJson(Map<String, dynamic> json) =>
+    _$LearningPathImpl(
+      id: json['id'] as String,
+      userId: json['userId'] as String?,
+      title: json['title'] as String?,
+      description: json['description'] as String?,
+      targetGoal: json['targetGoal'] as String?,
+      estimatedDuration: json['estimatedDuration'] as String?,
+      assessmentSessionId: json['assessment_session_id'] as String?,
+      metadata: json['metadata'] as Map<String, dynamic>?,
+      createdAt: json['created_at'] == null
+          ? null
+          : DateTime.parse(json['created_at'] as String),
+      updatedAt: json['updated_at'] == null
+          ? null
+          : DateTime.parse(json['updated_at'] as String),
+    );
+
+Map<String, dynamic> _$$LearningPathImplToJson(_$LearningPathImpl instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'userId': instance.userId,
+      'title': instance.title,
+      'description': instance.description,
+      'targetGoal': instance.targetGoal,
+      'estimatedDuration': instance.estimatedDuration,
+      'assessment_session_id': instance.assessmentSessionId,
+      'metadata': instance.metadata,
+      'created_at': instance.createdAt?.toIso8601String(),
+      'updated_at': instance.updatedAt?.toIso8601String(),
+    };
+
+_$PathNodeImpl _$$PathNodeImplFromJson(Map<String, dynamic> json) =>
+    _$PathNodeImpl(
+      id: json['id'] as String,
+      pathId: json['path_id'] as String,
+      label: json['label'] as String?,
+      type: json['type'] as String?,
+      details: json['details'] as String?,
+      positionX: (json['positionX'] as num?)?.toDouble(),
+      positionY: (json['positionY'] as num?)?.toDouble(),
+      estimatedTime: json['estimated_time'] as String?,
+      uiPosition: json['ui_position'] as Map<String, dynamic>?,
+      createdAt: json['created_at'] == null
+          ? null
+          : DateTime.parse(json['created_at'] as String),
+      updatedAt: json['updated_at'] == null
+          ? null
+          : DateTime.parse(json['updated_at'] as String),
+    );
+
+Map<String, dynamic> _$$PathNodeImplToJson(_$PathNodeImpl instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'path_id': instance.pathId,
+      'label': instance.label,
+      'type': instance.type,
+      'details': instance.details,
+      'positionX': instance.positionX,
+      'positionY': instance.positionY,
+      'estimated_time': instance.estimatedTime,
+      'ui_position': instance.uiPosition,
+      'created_at': instance.createdAt?.toIso8601String(),
+      'updated_at': instance.updatedAt?.toIso8601String(),
+    };
+
+_$PathEdgeImpl _$$PathEdgeImplFromJson(Map<String, dynamic> json) =>
+    _$PathEdgeImpl(
+      id: json['id'] as String?,
+      pathId: json['pathId'] as String?,
+      sourceNodeId: json['source_node_id'] as String?,
+      targetNodeId: json['target_node_id'] as String?,
+      relationshipType: json['relationshipType'] as String?,
+      createdAt: json['created_at'] == null
+          ? null
+          : DateTime.parse(json['created_at'] as String),
+      updatedAt: json['updated_at'] == null
+          ? null
+          : DateTime.parse(json['updated_at'] as String),
+    );
+
+Map<String, dynamic> _$$PathEdgeImplToJson(_$PathEdgeImpl instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'pathId': instance.pathId,
+      'source_node_id': instance.sourceNodeId,
+      'target_node_id': instance.targetNodeId,
+      'relationshipType': instance.relationshipType,
+      'created_at': instance.createdAt?.toIso8601String(),
+      'updated_at': instance.updatedAt?.toIso8601String(),
+    };
+
+_$NodeResourceImpl _$$NodeResourceImplFromJson(Map<String, dynamic> json) =>
+    _$NodeResourceImpl(
+      id: json['id'] as String,
+      nodeId: json['node_id'] as String,
+      title: json['title'] as String?,
+      type: json['type'] as String?,
+      url: json['url'] as String?,
+      description: json['description'] as String?,
+      createdAt: json['created_at'] == null
+          ? null
+          : DateTime.parse(json['created_at'] as String),
+      updatedAt: json['updated_at'] == null
+          ? null
+          : DateTime.parse(json['updated_at'] as String),
+    );
+
+Map<String, dynamic> _$$NodeResourceImplToJson(_$NodeResourceImpl instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'node_id': instance.nodeId,
+      'title': instance.title,
+      'type': instance.type,
+      'url': instance.url,
+      'description': instance.description,
+      'created_at': instance.createdAt?.toIso8601String(),
+      'updated_at': instance.updatedAt?.toIso8601String(),
+    };
+
+_$FullLearningPathResponseImpl _$$FullLearningPathResponseImplFromJson(
+        Map<String, dynamic> json) =>
+    _$FullLearningPathResponseImpl(
+      path: LearningPath.fromJson(json['path'] as Map<String, dynamic>),
+      nodes: (json['nodes'] as List<dynamic>)
+          .map((e) => PathNode.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      edges: (json['edges'] as List<dynamic>)
+          .map((e) => PathEdge.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      resources: (json['resources'] as List<dynamic>)
+          .map((e) => NodeResource.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+
+Map<String, dynamic> _$$FullLearningPathResponseImplToJson(
+        _$FullLearningPathResponseImpl instance) =>
+    <String, dynamic>{
+      'path': instance.path.toJson(),
+      'nodes': instance.nodes.map((e) => e.toJson()).toList(),
+      'edges': instance.edges.map((e) => e.toJson()).toList(),
+      'resources': instance.resources.map((e) => e.toJson()).toList(),
+    };
+
+_$LearningPathCreateRequestImpl _$$LearningPathCreateRequestImplFromJson(
+        Map<String, dynamic> json) =>
+    _$LearningPathCreateRequestImpl(
+      userGoal: json['userGoal'] as String,
+      assessmentSessionId: json['assessmentSessionId'] as String?,
+      userProfileJson: json['userProfileJson'] as String?,
+    );
+
+Map<String, dynamic> _$$LearningPathCreateRequestImplToJson(
+        _$LearningPathCreateRequestImpl instance) =>
+    <String, dynamic>{
+      'userGoal': instance.userGoal,
+      'assessmentSessionId': instance.assessmentSessionId,
+      'userProfileJson': instance.userProfileJson,
+    };
