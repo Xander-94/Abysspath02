@@ -2,10 +2,19 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/deepseek_service.dart';
 import 'dart:convert';
 import 'dart:developer';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/assessment_profile.dart';
+import 'dart:async';
 
 /// 对话评估服务
 class DialogueAssessmentService {
   final _supabase = Supabase.instance.client;
+  final _assessmentHistory = <Map<String, String>>[];
+  String? _currentConversationId;
+  Timer? _assessmentTimer;
+  int _remainingSeconds = 120; // 默认评估时间
+
+  DialogueAssessmentService();
 
   /// 开始新的评估会话
   Future<Map<String, dynamic>> startAssessment() async {
@@ -271,4 +280,92 @@ $historyText
       rethrow;
     }
   }
-} 
+
+  /// 发送消息到AI服务 (对话式评估)
+  Future<String?> sendMessage(String message) async {
+    print('发送评估消息: $message');
+    _assessmentHistory.add({'role': 'user', 'content': message});
+
+    try {
+      // 恢复静态调用
+      final ChatResponse response = await DeepseekService.sendMessage(
+        _assessmentHistory,
+        conversationId: _currentConversationId,
+      );
+
+      // 直接处理 ChatResponse
+      if (response.success) {
+        print('Deepseek 回复: ${response.content}');
+        _assessmentHistory.add({'role': 'assistant', 'content': response.content});
+        _currentConversationId = response.conversationId;
+        return response.content;
+      } else {
+        final errorMessage = 'AI 服务返回错误: ${response.error ?? '未知错误'}';
+        print(errorMessage);
+        _assessmentHistory.add({'role': 'assistant', 'content': errorMessage});
+        return errorMessage; // 或者返回 null，取决于 UI 如何处理
+      }
+
+    } catch (e) {
+      print('发送消息时发生异常: $e');
+      final errorMessage = '发送消息时发生异常: $e';
+      _assessmentHistory.add({'role': 'assistant', 'content': errorMessage});
+      return errorMessage; // 或者返回 null
+    }
+  }
+
+  /// 生成评估报告
+  Future<String?> generateAssessmentReport() async {
+    print('尝试生成评估报告...');
+
+    if (_assessmentHistory.isEmpty) {
+      return "没有足够的对话来生成报告。";
+    }
+    if (!(_assessmentHistory.last['role'] == 'user' && _assessmentHistory.last['content']!.contains('生成一份详细的用户画像评估报告'))) {
+       _assessmentHistory.add({'role': 'user', 'content': '请根据以上对话内容，生成一份详细的用户画像评估报告。'});
+    }
+
+    try {
+      // 恢复静态调用
+      final ChatResponse response = await DeepseekService.sendMessage(
+        _assessmentHistory,
+        conversationId: _currentConversationId,
+      );
+
+      // 直接处理 ChatResponse
+      String? reportContent;
+      if (response.success) {
+        print('报告生成成功: ${response.content.substring(0, response.content.length > 50 ? 50 : response.content.length)}...');
+        reportContent = response.content;
+      } else {
+        final errorMessage = 'AI 服务返回错误: ${response.error ?? '未知错误'}';
+        print(errorMessage);
+        reportContent = errorMessage;
+      }
+
+      if (_assessmentHistory.isNotEmpty && _assessmentHistory.last['role'] == 'user' && _assessmentHistory.last['content']!.contains('生成一份详细的用户画像评估报告')) {
+         _assessmentHistory.removeLast();
+      }
+      return reportContent;
+
+    } catch (e) {
+       print('生成报告时发生异常: $e');
+       if (_assessmentHistory.isNotEmpty && _assessmentHistory.last['role'] == 'user' && _assessmentHistory.last['content']!.contains('生成一份详细的用户画像评估报告')) {
+         _assessmentHistory.removeLast();
+       }
+       return '生成报告时发生异常: $e';
+    }
+  }
+
+  // 占位符实现，避免编译错误
+  Future<List<Map<String, dynamic>>> getQuestions(String category) async { return [];}
+  void startAssessmentTimer(Function(String) onTick, Function onComplete) { _assessmentTimer?.cancel(); _remainingSeconds = 120; _assessmentTimer = Timer.periodic(Duration(seconds: 1), (timer) { _remainingSeconds--; onTick(_formatTime(_remainingSeconds)); if (_remainingSeconds <= 0) { onComplete(); _stopTimer();} }); }
+  void _stopTimer() { _assessmentTimer?.cancel(); }
+  String _formatTime(int seconds) { int minutes = seconds ~/ 60; int remainingSeconds = seconds % 60; return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}'; }
+}
+
+/// 提供 DialogueAssessmentService 实例
+final dialogueAssessmentServiceProvider = Provider<DialogueAssessmentService>((ref) {
+  // 不再需要传递 ref
+  return DialogueAssessmentService();
+}); 

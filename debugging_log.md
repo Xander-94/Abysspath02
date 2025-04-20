@@ -249,66 +249,43 @@
 
 ## 18. 问题：加载学习路径详情时反复出现 `type 'Null' is not a subtype of type 'String'` 错误
 
-*   **现象**: 获取学习路径详情的 API (GET `/learning-paths/{id}`) 调用成功 (返回 200 OK 和 JSON 数据)，但在 Flutter 端解析该 JSON 响应时，反复抛出 `type 'Null' is not a subtype of type 'String'` 错误，导致页面加载失败并显示错误信息。
-*   **原因**: API 返回的 JSON 数据中，至少有一个字段的值是 `null`，但 Flutter 端对应的 Freezed 模型 (`FullLearningPathResponse` 及其嵌套的 `LearningPath`, `PathNode`, `NodeResource`, `PathEdge` 模型) 中，该字段被声明为非空的 `String` 类型。这导致 `json_serializable` 在尝试将 `null` 反序列化为非空 `String` 时失败。
-*   **解决方案 (迭代排查与最终规避)**:
-    1.  **初步检查与修复**: 首先将模型中明显可能为 `null` 或缺失的字段 (如 `LearningPath.assessment_session_id`, `LearningPath.metadata`, `PathNode.estimated_time`) 添加为可空类型 (`String?`, `Map<String, dynamic>?`)，运行 `build_runner`。问题未解决。
-    2.  **扩大可空范围 (试错)**: 由于错误持续存在，依次将其他非 ID 的 `String` 字段也修改为可空 `String?`，包括 `NodeResource.title`, `NodeResource.type`, `PathNode.label`, `PathNode.type`, `LearningPath.title`。每次修改模型后都必须：
-        *   运行 `flutter pub run build_runner build --delete-conflicting-outputs` 重新生成代码。
-        *   修复因模型更改而在 UI 代码 (`learning_path_detail_page.dart`, `knowledge_graph_view.dart`) 中新出现的 Linter 错误 (通常是通过在 `Text` Widget 或函数调用处添加 `?? ''` 或其他默认值)。
-        即使完成这些修改，错误依然存在。
-    3.  **精确定位错误源**: 修改 API 服务文件 (`learning_path_api_service.dart`) 中 `getLearningPathDetail` 方法末尾的 `catch (e)` 块，添加详细的日志打印：
-        ```dart
-        catch (e) {
-          print('*** Detailed Deserialization Error ***');
-          print('Error Object: $e');
-          if (e is Error) {
-            print('Stack Trace:\n${e.stackTrace}');
-          }
-          throw LearningPathApiException('发生意外错误: ${e.toString()}');
-        }
+*   **现象**: 在前端加载学习路径详情数据时，经常性地出现类型转换错误。
+*   **原因**: 后端 AI 生成的数据不确定性高，返回的 JSON 中很多字段（包括ID、标签、描述等）可能为 `null`。前端 Freezed 模型最初设计时未充分考虑这种情况，将许多字段定义为非空 (`String`)，导致解析 `null` 值时抛出 `type 'Null' is not a subtype of type 'String'`。
+*   **解决方案**: 
+    *   **修改 Freezed 模型**: 对 `LearningPath`, `PathNode`, `PathEdge`, `NodeResource` 等模型进行大规模修改，将大量可能为 `null` 的字段（包括 `PathEdge` 的 `id`、`label` 等，`PathNode` 的 `label`, `summary` 等）类型改为可空 (`String?`, `double?` 等)。
+    *   **添加 Null 处理**: 在使用这些可空字段的地方（例如 Widget 构建、逻辑判断中），添加 `??` 操作符提供默认值或进行 `null` 检查，确保代码的健壮性。
+*   **教训**: 处理 AI 生成的数据时，必须假设任何非必需字段都可能为 `null`，并在模型定义和数据使用层面做好充分的 `null` 安全处理。
+
+## 19. 问题：创建学习路径时前端报 `type 'Null' is not a subtype of type 'String'` (401 错误相关)
+
+*   **现象**: 用户在 Flutter 应用中点击创建学习路径按钮，后端 API 返回 `201 Created` 成功响应，但前端紧接着抛出 `type 'Null' is not a subtype of type 'String'` 错误，学习路径未成功加载。
+*   **初步分析**: 
+    *   检查后端日志，确认 `POST /api/learning-paths/` 接口成功执行并返回了 `{"message":"...","learning_path_id":"..."}` 的 JSON。
+    *   检查前端日志，发现错误发生在 `LearningPathService` 的 `generateAndSaveLearningPath` 方法内部。
+*   **深入排查**:
+    *   发现 `generateAndSaveLearningPath` 方法最初是设计为通过 Retrofit 的 `_apiService.createLearningPath` 调用 API，并期望该方法返回一个完整的 `LearningPath` 对象。
+    *   然而，后端实际只返回了一个简单的 JSON。Retrofit 在尝试将这个简单 JSON 反序列化为复杂的 `LearningPath` 对象时失败（因为缺少很多字段），导致后续访问 `createdPath.id` 时实际访问的是 `null` 或无效数据，从而触发了类型转换错误。
+*   **解决方案**: 
+    *   **修改 `LearningPathService.generateAndSaveLearningPath`**: 不再使用 Retrofit 的 `_apiService` 调用此特定端点。改为直接使用注入的 `_dio` 实例发起 `POST` 请求。
+    *   **直接解析响应**: 在 `dio.post` 成功后（状态码 201），直接将 `response.data` 解析为 `Map<String, dynamic>`，并从中提取 `learning_path_id` 字段的值作为结果返回。
+    *   添加对响应状态码和 `learning_path_id` 字段存在性及类型的校验。
+*   **效果**: 前端不再错误地期望一个完整的对象，而是正确地处理了后端返回的简单 JSON，成功提取了路径 ID，解决了类型转换错误。
+
+## 20. 问题：物理手机无法连接本地开发后端服务
+
+*   **现象**: 在模拟器上应用可以正常连接本地 FastAPI 后端，但在另一台物理手机上安装通过 `flutter build apk` 生成的包后，无法连接后端，表现为网络请求超时或失败。
+*   **原因**: 
+    *   Flutter 应用中 `DioProvider` 配置的默认 `BASE_URL` (来自 `String.fromEnvironment` 的默认值) 是 `http://10.0.2.2:8000`。`10.0.2.2` 是 Android 模拟器访问宿主机 (开发电脑) 的特殊 IP 地址。
+    *   物理手机与开发电脑处于同一局域网时，无法通过 `10.0.2.2` 访问开发电脑。
+*   **解决方案**: 
+    1.  **查找开发电脑的局域网 IP**: 使用 `ipconfig` (Windows) 或 `ifconfig` (macOS/Linux) 命令查找开发电脑在当前局域网（例如 Wi-Fi 或有线连接）中的 IPv4 地址（例如 `192.168.1.105` 或 `172.17.10.232`）。
+    2.  **确认网络环境**: 确保物理手机和开发电脑连接到同一个局域网。
+    3.  **使用 `--dart-define` 构建**: 在运行 `flutter build apk` 时，使用 `--dart-define` 标志覆盖 `BASE_URL` 环境变量，将其设置为开发电脑的实际局域网 IP 地址和端口。
+        ```bash
+        # 示例，将 172.17.10.232 替换为你的实际 IP
+        flutter build apk --dart-define=BASE_URL=http://172.17.10.232:8000 
         ```
-    4.  **分析堆栈跟踪**: 重新运行应用并触发错误，查看控制台打印的详细堆栈跟踪。堆栈信息明确指向错误发生在 `_$$PathEdgeImplFromJson` 函数内部，即解析 `PathEdge` 对象时。
-    5.  **最终定位与规避**: 推断是 `PathEdge` 模型中的某个非空 `String` ID 字段 (`id`, `pathId`, `sourceNodeId`, `targetNodeId`) 在 API 返回的 JSON 中实际为 `null` (可能源于后端数据生成或处理环节)。为了让 Flutter 应用能够处理这种异常数据，将 `PathEdge` 模型中的这四个 ID 字段全部修改为可空类型 `String?`。
-    6.  **最后运行 Build Runner**: 再次运行 `flutter pub run build_runner build --delete-conflicting-outputs`。
-*   **效果**: 在将 `PathEdge` 的 ID 字段也改为可空后，Flutter 应用终于能够成功解析 API 响应，`type 'Null' is not a subtype of type 'String'` 错误消失，学习路径详情页面得以正确加载和显示。这次调试强调了在处理嵌套复杂 JSON 时，Freezed 模型字段的可空性需要与实际数据严格匹配，以及利用详细堆栈跟踪定位问题的关键性。
-
-## 19. 问题：学习路径创建成功 (201) 但前端历史/消息显示不正确或缺失
-
-*   **现象**:
-    *   调用创建学习路径 API (POST `/learning-paths/`) 返回 201 Created，但前端：
-        *   历史记录抽屉显示旧的/占位的路径列表项，或乐观更新后列表项正常但消息为空。
-        *   聊天面板在创建后或切换历史路径后显示空白，不加载消息。
-        *   "查看详情" 按钮在某些情况下（如从历史加载）不显示。
-    *   后端有时会因外键约束或 Pydantic 模型验证失败而返回 500 或 400 错误。
-*   **原因排查 (多方面)**:
-    *   **后端**:
-        *   `learning_path_repository`: `node_resources` 和 `learning_path_messages` 插入时缺少正确的 `path_id` 赋值，导致外键约束失败。
-        *   `learning_path_repository`: 插入初始消息失败时未抛出异常，导致 API 返回误导性的 201。
-        *   `models`: `NodeResource` 的 `type` 字段验证器缺少 AI 可能返回的类型 (如 'podcast')。
-    *   **数据库**:
-        *   `learning_path_messages` 的 RLS (Row Level Security) 策略配置错误：
-            *   Target Role 错误地设置为 `public` 而不是 `authenticated`。
-            *   USING 表达式错误地关联了旧的 `learning_path_history` 表而不是正确的 `learning_paths` 表。
-    *   **前端 Service**:
-        *   `LearningPathService.getHistoryPaths` 从错误的 `learning_path_history` 表读取数据。
-    *   **前端 Provider/UI**:
-        *   `LearningPathNotifier`: 乐观更新后立刻调用 `_service.getHistoryPaths()` 可能获取到未完全同步的旧列表。
-        *   `LearningPathPage._handleSendMessage`: 包含了多余的 `ref.refresh(learningPathProvider)` 调用，导致乐观更新的状态被重置。
-        *   `ChatMessageWidget`: 依赖临时的 `metadata` 来显示"查看详情"按钮，导致从数据库加载的消息无法显示该按钮。
-*   **解决方案 (综合)**:
-    1.  **后端**:
-        *   修正 `learning_path_repository` 中 `node_resources` 和 `learning_path_messages` 的 `path_id` 赋值逻辑。
-        *   修改 `learning_path_repository`，在插入初始消息失败时抛出异常。
-        *   修改 `models` 中 `NodeResourceBase` 的 `validate_resource_type`，添加 'podcast' 类型。
-    2.  **数据库**:
-        *   通过 SQL 迁移为 `learning_path_messages` 表添加 `is_creation_confirmation` (BOOLEAN, DEFAULT FALSE) 字段。
-        *   修改 `learning_path_messages` 的 RLS 策略：Target Role 改为 `authenticated`，USING 表达式改为通过 `learning_paths` 表验证 `user_id`。
-    3.  **前端 Service**:
-        *   修改 `LearningPathService.getHistoryPaths` 从 `learning_paths` 表读取，并选择必要字段。
-        *   修改 `LearningPathService.getPathMessages` 在 `select()` 中包含 `is_creation_confirmation`。
-    4.  **前端 Provider/UI**:
-        *   修改 `LearningPathNotifier` 的乐观更新逻辑，不再调用 `getHistoryPaths`，而是手动构造列表项（包含 `is_creation_confirmation` 标记）。
-        *   移除 `LearningPathPage._handleSendMessage` 中的 `ref.refresh()`。
-        *   修改 `ChatMessageWidget`，根据数据库返回的 `is_creation_confirmation` 字段判断是否显示按钮，并从 `path_id` 获取导航 ID。
-*   **效果**: 解决了创建/查看学习路径相关的系列问题，实现了路径创建、历史列表即时更新、消息正确加载和详情按钮的可靠显示。
+    4.  **安装新 APK**: 将使用 `--dart-define` 构建的新 APK 安装到物理手机上。
+*   **注意事项**: 
+    *   电脑的局域网 IP 地址可能会改变，每次变化后都需要使用新的 IP 重新构建 APK。
+    *   电脑防火墙或网络策略（尤其是校园网）可能会阻止来自局域网其他设备的连接，需要确保端口 8000 是开放的。

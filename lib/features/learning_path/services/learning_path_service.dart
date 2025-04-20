@@ -1,19 +1,22 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:http/http.dart' as http;
+// import 'package:http/http.dart' as http; // 不再需要
 import 'dart:convert';
-import 'package:dio/dio.dart'; // *** 导入 Dio ***
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // 导入Provider，虽然这里不用，但可能需要
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+// import 'package:dartz/dartz.dart'; // *** 彻底移除 dartz 导入 ***
 import '../models/learning_path_models.dart';
-import 'learning_path_api_service.dart'; // 导入API服务
+import 'learning_path_api_service.dart';
+import '../../../core/providers/dio_provider.dart'; // *** 添加 Dio Provider 的导入 ***
 
 /// 学习路径服务 (现在包含与后端API交互的逻辑)
 class LearningPathService {
   final _supabase = Supabase.instance.client;
-  final _baseUrl = 'http://10.0.2.2:8000';  // Android模拟器中访问本机服务需要使用10.0.2.2
+  // final _baseUrl = 'http://192.168.137.1:8000';  // 不再需要，由 Dio Provider 处理
   final LearningPathApiService _apiService; // *** 接收 API 服务实例 ***
+  final Dio _dio; // *** 添加 Dio 实例 ***
 
-  // *** 修改构造函数以接收 API 服务 ***
-  LearningPathService(this._apiService);
+  // *** 修改构造函数以接收 API 服务 和 Dio ***
+  LearningPathService(this._apiService, this._dio);
 
   /// 获取历史学习路径列表
   Future<List<Map<String, dynamic>>> getHistoryPaths() async {
@@ -107,23 +110,71 @@ class LearningPathService {
   Future<String> generateAndSaveLearningPath(LearningPathCreateRequest request) async {
     print('[LearningPathService] generateAndSaveLearningPath called with goal: ${request.userGoal}');
     try {
-      // *** 使用注入的 _apiService，它现在返回 String (pathId) ***
-      final String createdPathId = await _apiService.createLearningPath(request);
-      print('[LearningPathService] Backend API returned created path ID: $createdPathId');
-      // !! 直接返回获取到的 pathId !!
-      return createdPathId;
+      // *** 直接使用 _dio 发起 POST 请求 ***
+      final response = await _dio.post(
+        '/learning-paths/', // 使用相对路径，Dio Provider 会处理基础 URL
+        data: request.toJson(), // 使用请求模型的 toJson 方法
+      );
+      
+      print('[LearningPathService] Backend API response status: ${response.statusCode}');
+      print('[LearningPathService] Backend API response data: ${response.data}');
+
+      // *** 检查响应状态码并解析简单 JSON ***
+      if (response.statusCode == 201 && response.data is Map<String, dynamic>) {
+        final responseData = response.data as Map<String, dynamic>;
+        if (responseData.containsKey('learning_path_id') && responseData['learning_path_id'] is String) {
+          final pathId = responseData['learning_path_id'] as String;
+           print('[LearningPathService] Extracted learning_path_id: $pathId');
+          if (pathId.isNotEmpty) {
+            return pathId;
+          } else {
+             throw Exception('API 创建路径成功，但返回的路径 ID 为空字符串');
+          }
+        } else {
+          throw Exception('API 响应成功，但未找到有效的 learning_path_id 字段');
+        }
+      } else {
+        // 处理非 201 状态码或无效响应格式
+        throw DioException(
+           requestOptions: response.requestOptions,
+           response: response,
+           error: '创建学习路径请求失败或响应格式无效',
+           type: DioExceptionType.badResponse,
+        );
+      }
+
     } catch (e) {
       print('[LearningPathService] Error generating learning path via API: $e');
-      // 重新抛出更具体的异常或包装后的异常
-      if (e is LearningPathApiException) { 
-        throw Exception('通过API生成学习路径失败: ${e.message}');
+      if (e is DioException) {
+        // *** 改进 DioException 处理 ***
+        String errorMessage = '网络错误';
+        if (e.response?.statusCode != null) {
+           errorMessage += ' (状态码: ${e.response!.statusCode})';
+        }
+        if (e.response?.data != null) {
+           // 尝试提取后端的 detail 信息
+           var detail = e.response!.data;
+           if (detail is Map<String, dynamic> && detail.containsKey('detail')) {
+              errorMessage += ': ${detail['detail']}';
+           } else if (detail is String && detail.isNotEmpty) {
+              errorMessage += ': ${detail}'; // 如果直接返回错误字符串
+           } else if (detail is Map<String, dynamic> && detail.containsKey('message')) {
+             // 尝试提取 message 字段 (如此处成功响应中的 message)
+              errorMessage += ': ${detail['message']}'; 
+           }
+        } else if (e.message != null && e.message!.isNotEmpty) {
+           errorMessage += ': ${e.message}'; // 使用 DioException 的 message 作为后备
+        }
+        // 抛出更具体的异常信息
+        throw Exception('通过API生成学习路径失败: $errorMessage');
       } else {
+        // 保留对其他类型异常的处理
         throw Exception('通过API生成学习路径时发生未知错误: $e'); 
       }
     }
   }
 
-  /// 发送消息到Deepseek并保存到数据库
+  /// 发送消息到后端聊天接口并保存到数据库 - 恢复版
   Future<String> sendMessage(String pathId, String message) async {
     try {
       // 1. 保存用户消息到数据库
@@ -134,26 +185,27 @@ class LearningPathService {
         'created_at': DateTime.now().toIso8601String(),
       });
 
-      // 2. 发送消息到Deepseek
-      final response = await http.post(
-        Uri.parse('$_baseUrl/api/chat/'),
-        headers: {
-          'Content-Type': 'application/json; charset=utf-8',
-          'Accept': 'application/json; charset=utf-8'
-        },
-        body: utf8.encode(jsonEncode({
+      // 2. 发送消息到后端聊天接口 (使用 Dio)
+      final response = await _dio.post(
+        '/chat/', 
+        data: {
           'message': message,
-          'conversation_id': pathId,
+          'conversation_id': pathId, 
           'metadata': {'role': 'user'}
-        })),
+        },
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(utf8.decode(response.bodyBytes));
-        if (data['success'] == false) {
-          throw data['error'] ?? '请求失败';
+        String aiResponse;
+        if (response.data is Map<String, dynamic> && response.data.containsKey('content')) {
+          aiResponse = response.data['content'] as String;
+        } else if (response.data is String) {
+          aiResponse = response.data;
+        } else {
+           print('警告：/chat/ 接口响应格式未知: ${response.data}');
+           // 抛出异常表示无法处理
+           throw Exception('无法解析AI响应'); 
         }
-        final aiResponse = data['content'] as String;
 
         // 3. 保存AI响应到数据库
         await _supabase.from('learning_path_messages').insert({
@@ -163,12 +215,20 @@ class LearningPathService {
           'created_at': DateTime.now().toIso8601String(),
         });
 
+        // 直接返回 AI 响应字符串
         return aiResponse;
+      } else { // 非 200 状态码
+        // 抛出异常，携带错误信息
+        throw Exception('请求失败：${response.statusCode} - ${response.data}');
       }
-      throw '请求失败：${response.statusCode} - ${utf8.decode(response.bodyBytes)}';
-    } catch (e) {
+    } on DioException catch (e) { // 处理 Dio 错误
+      print('发送消息 Dio 异常: $e');
+      // 重新抛出，让调用者处理
+      throw Exception('网络请求失败: ${e.message}');
+    } catch (e) { // 处理其他错误，例如 Supabase 插入失败
       print('发送消息失败: $e');
-      throw '发送消息失败：$e';
+      // 重新抛出
+      throw Exception('发送消息时发生错误：$e');
     }
   }
 
@@ -220,5 +280,6 @@ class LearningPathService {
 final learningPathLogicProvider = Provider<LearningPathService>((ref) { // *** 重命名为 Logic Provider ***
   // 获取 LearningPathApiService 实例
   final apiService = ref.watch(learningPathServiceProvider); // *** 依赖 API Service Provider ***
-  return LearningPathService(apiService);
+  final dio = ref.watch(dioProvider); // *** 获取 Dio 实例 ***
+  return LearningPathService(apiService, dio); // *** 传递 Dio 实例 ***
 }); 

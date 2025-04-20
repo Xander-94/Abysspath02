@@ -185,7 +185,8 @@ flutter run
   - **模型与数据处理**: 升级模型以支持节点/边结构，处理元技能/影响力类型，关联学习资源。
   - **调试与健壮性**: 
     - 解决了后端通过代理连接 Supabase 时的 SSL 错误 (需配置 `NO_PROXY`)。
-    - 解决了前端解析 API 响应时因 `null` 值导致的 `type 'Null' is not a subtype of type 'String'` 错误，通过将大量模型字段（包括 `PathEdge` 的 ID）设为可空并添加 `null` 处理 (`??`) 来规避。
+    - **前端 API 响应处理修复**: 解决了前端在调用创建学习路径接口时，因预期返回数据结构与后端实际返回不符（期望完整对象 vs 实际简单JSON），导致的 `type 'Null' is not a subtype of type 'String'` 错误。通过修改 `LearningPathService` 直接使用 Dio 处理该请求并解析响应中的 `learning_path_id` 来修复。
+    - **物理设备连接后端**: 解决了物理手机无法连接本地开发后端的问题，通过在构建 APK 时使用 `--dart-define` 指定开发电脑的局域网 IP 地址作为 `BASE_URL` 来解决。
   - **UI 优化**: 
     - 改进学习路径详情页面的布局和交互。
     - 优化评估结果页面 (`AssessmentResultPage`) 的视觉效果。
