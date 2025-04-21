@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:abysspath02/core/providers/app_providers.dart' as app;
-import 'package:abysspath02/features/assessment/models/assessment_profile.dart';
-import 'package:abysspath02/features/assessment/providers/assessment_profile_provider.dart';
+import 'package:abysspath/core/providers/app_providers.dart' as app;
+import 'package:abysspath/features/assessment/models/assessment_profile.dart';
+import 'package:abysspath/features/assessment/providers/assessment_profile_provider.dart';
 import '../../../profile/providers/profile_notifier.dart';
 import '../../../../core/widgets/app_scaffold.dart';
 import '../../../profile/models/profile.dart' as old_profile_models;

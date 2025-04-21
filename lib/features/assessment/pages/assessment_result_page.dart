@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:abysspath02/core/theme/app_colors.dart'; // Import AppColors
-import 'package:abysspath02/features/assessment/providers/assessment_profile_provider.dart';
-import 'package:abysspath02/features/assessment/models/assessment_profile.dart';
+import 'package:abysspath/core/theme/app_colors.dart'; // Import AppColors
+import 'package:abysspath/features/assessment/providers/assessment_profile_provider.dart';
+import 'package:abysspath/features/assessment/models/assessment_profile.dart';
 
 class AssessmentResultPage extends ConsumerWidget {
   const AssessmentResultPage({super.key});

@@ -24,14 +24,15 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(homeProvider);
-    final user = SupabaseConfig.client.auth.currentUser;
+    final isLoading = ref.watch(homeProvider.select((s) => s.isLoading));
+    final error = ref.watch(homeProvider.select((s) => s.error));
 
     return AppScaffold(
       title: '首页',
       actions: [
         IconButton(
           icon: const Icon(Icons.logout),
+          tooltip: '退出登录',
           onPressed: () async {
             await SupabaseConfig.client.auth.signOut();
             if (context.mounted) {
@@ -43,47 +44,68 @@ class _HomePageState extends ConsumerState<HomePage> {
           },
         ),
       ],
-      body: state.isLoading
+      body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : state.error != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '出错了：${state.error}',
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () {
-                          ref.read(homeProvider.notifier).loadHomeData();
-                        },
-                        child: const Text('重试'),
-                      ),
-                    ],
-                  ),
-                )
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildUserInfoCard(state),
-                      const SizedBox(height: 16),
-                      _buildQuickAccess(),
-                      const SizedBox(height: 24),
-                      _buildLearningProgress(state),
-                      const SizedBox(height: 24),
-                      _buildRecommendedPaths(state),
-                    ],
-                  ),
-                ),
+          : error != null
+              ? _buildErrorView(context, error)
+              : _buildContentView(),
     );
   }
 
-  // 用户信息卡片
-  Widget _buildUserInfoCard(HomeState state) {
+  Widget _buildErrorView(BuildContext context, String errorMsg) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, color: Colors.red, size: 48),
+          const SizedBox(height: 16),
+          Text(
+            '加载首页数据失败',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            errorMsg,
+            style: Theme.of(context).textTheme.bodySmall,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: () {
+              ref.read(homeProvider.notifier).loadHomeData();
+            },
+            child: const Text('重试'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContentView() {
+    return const SingleChildScrollView(
+      padding: EdgeInsets.all(AppStyles.spacing16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _UserInfoCard(),
+          SizedBox(height: AppStyles.spacing16),
+          _QuickAccess(),
+          SizedBox(height: AppStyles.spacing24),
+          _LearningProgress(),
+          SizedBox(height: AppStyles.spacing24),
+        ],
+      ),
+    );
+  }
+}
+
+class _UserInfoCard extends ConsumerWidget {
+  const _UserInfoCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final username = ref.watch(homeProvider.select((s) => s.username));
+
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(
@@ -96,17 +118,17 @@ class _HomePageState extends ConsumerState<HomePage> {
           padding: const EdgeInsets.all(AppStyles.spacing16),
           child: Row(
             children: [
-              CircleAvatar(
+              const CircleAvatar(
                 radius: 32,
                 backgroundColor: AppColors.primary,
-                child: const Icon(Icons.person, size: 32, color: Colors.white),
+                child: Icon(Icons.person, size: 32, color: Colors.white),
               ),
               const SizedBox(width: AppStyles.spacing16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       '欢迎回来',
                       style: TextStyle(
                         fontSize: AppStyles.fontSize16,
@@ -115,30 +137,36 @@ class _HomePageState extends ConsumerState<HomePage> {
                     ),
                     const SizedBox(height: AppStyles.spacing4),
                     Text(
-                      state.username ?? '未登录',
-                      style: TextStyle(
+                      username ?? '访客',
+                      style: const TextStyle(
                         fontSize: AppStyles.fontSize20,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.arrow_forward_ios, size: 16),
+              const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
             ],
           ),
         ),
       ),
     );
   }
+}
 
-  // 快速入口
-  Widget _buildQuickAccess() {
+class _QuickAccess extends StatelessWidget {
+  const _QuickAccess();
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           '快速入口',
           style: TextStyle(
             fontSize: AppStyles.fontSize18,
@@ -146,44 +174,80 @@ class _HomePageState extends ConsumerState<HomePage> {
             color: AppColors.textPrimary,
           ),
         ),
-        const SizedBox(height: AppStyles.spacing8),
+        const SizedBox(height: AppStyles.spacing12),
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded(
-              child: _buildQuickAccessItem(
-                icon: Icons.assessment,
-                label: '能力评估',
-                onTap: () => context.go('/assessment'),
-              ),
+            _QuickAccessItem(
+              icon: Icons.assessment_outlined,
+              label: '能力评估',
+              onTap: () => context.go('/assessment'),
             ),
-            const SizedBox(width: AppStyles.spacing16),
-            Expanded(
-              child: _buildQuickAccessItem(
-                icon: Icons.school,
-                label: '学习路径',
-                onTap: () => context.go('/learning-path'),
-              ),
+            _QuickAccessItem(
+              icon: Icons.school_outlined,
+              label: '学习路径',
+              onTap: () => context.go('/learning-path'),
             ),
-            const SizedBox(width: AppStyles.spacing16),
-            Expanded(
-              child: _buildQuickAccessItem(
-                icon: Icons.person,
-                label: '个人中心',
-                onTap: () => context.go('/profile'),
-              ),
+            _QuickAccessItem(
+              icon: Icons.person_outline,
+              label: '个人中心',
+              onTap: () => context.go('/profile'),
             ),
           ],
         ),
       ],
     );
   }
+}
 
-  // 学习进度
-  Widget _buildLearningProgress(HomeState state) {
+class _QuickAccessItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _QuickAccessItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppStyles.radius8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppStyles.spacing8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 32, color: AppColors.primary),
+            const SizedBox(height: AppStyles.spacing8),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: AppStyles.fontSize12,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LearningProgress extends ConsumerWidget {
+  const _LearningProgress();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final progress = ref.watch(homeProvider.select((s) => s.progress));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           '学习进度',
           style: TextStyle(
             fontSize: AppStyles.fontSize18,
@@ -191,51 +255,34 @@ class _HomePageState extends ConsumerState<HomePage> {
             color: AppColors.textPrimary,
           ),
         ),
-        const SizedBox(height: AppStyles.spacing8),
+        const SizedBox(height: AppStyles.spacing12),
         Card(
           elevation: 2,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppStyles.radius12),
           ),
+          clipBehavior: Clip.antiAlias,
           child: Padding(
             padding: const EdgeInsets.all(AppStyles.spacing16),
             child: Column(
               children: [
-                Stack(
+                Row(
                   children: [
-                    LinearProgressIndicator(
-                      value: state.progress,
-                      backgroundColor: AppColors.background,
-                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-                      minHeight: 8,
-                    ),
-                    Positioned.fill(
-                      child: Center(
-                        child: Text(
-                          '${(state.progress * 100).toInt()}%',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(AppStyles.radius4),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          backgroundColor: AppColors.background,
+                          valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                          minHeight: 10,
                         ),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: AppStyles.spacing8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
+                    const SizedBox(width: AppStyles.spacing12),
                     Text(
-                      '当前进度',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: AppStyles.fontSize14,
-                      ),
-                    ),
-                    Text(
-                      '${(state.progress * 100).toInt()}%',
-                      style: TextStyle(
+                      '${(progress * 100).toInt()}%',
+                      style: const TextStyle(
                         color: AppColors.primary,
                         fontSize: AppStyles.fontSize14,
                         fontWeight: FontWeight.bold,
@@ -248,89 +295,6 @@ class _HomePageState extends ConsumerState<HomePage> {
           ),
         ),
       ],
-    );
-  }
-
-  // 推荐学习路径
-  Widget _buildRecommendedPaths(HomeState state) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '推荐学习路径',
-          style: TextStyle(
-            fontSize: AppStyles.fontSize18,
-            fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: AppStyles.spacing8),
-        ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: state.recommendedPaths.length,
-          itemBuilder: (context, index) {
-            final path = state.recommendedPaths[index];
-            return Card(
-              elevation: 2,
-              margin: const EdgeInsets.only(bottom: AppStyles.spacing8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppStyles.radius12),
-              ),
-              child: InkWell(
-                onTap: () => context.go('/learning-path/${path['id']}'),
-                borderRadius: BorderRadius.circular(AppStyles.radius12),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: AppColors.primary,
-                    child: Text(
-                      '${index + 1}',
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
-                  title: Text(path['title'] as String),
-                  subtitle: Text(path['description'] as String),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                ),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  // 快速入口项
-  Widget _buildQuickAccessItem({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppStyles.radius8),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppStyles.radius8),
-        child: Padding(
-          padding: const EdgeInsets.all(AppStyles.spacing16),
-          child: Column(
-            children: [
-              Icon(icon, size: 32, color: AppColors.primary),
-              const SizedBox(height: AppStyles.spacing8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: AppStyles.fontSize14,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

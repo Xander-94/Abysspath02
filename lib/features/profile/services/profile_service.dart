@@ -5,7 +5,7 @@ import '../models/interest_graph.dart' as old_profile_models;
 import '../models/behavior.dart' as old_profile_models;
 import '../models/constraints.dart' as old_profile_models;
 import '../models/dynamic_flags.dart' as old_profile_models;
-import 'package:abysspath02/features/assessment/models/assessment_profile.dart';
+import 'package:abysspath/features/assessment/models/assessment_profile.dart';
 
 /// 个人中心服务
 class ProfileService {

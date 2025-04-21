@@ -18,7 +18,7 @@ final dioProvider = Provider<Dio>((ref) {
   developer.log('使用的后端 Base URL: $_baseUrl', name: 'DioProvider'); // 打印使用的URL
   final dio = Dio(BaseOptions(
     baseUrl: _baseUrl, // 使用包含 /api 的完整 URL
-    connectTimeout: const Duration(seconds: 5),
+    connectTimeout: const Duration(seconds: 30), // 将连接超时增加到 30 秒
     receiveTimeout: const Duration(seconds: 300),
     contentType: 'application/json',
     validateStatus: (status) => status != null && status < 500,

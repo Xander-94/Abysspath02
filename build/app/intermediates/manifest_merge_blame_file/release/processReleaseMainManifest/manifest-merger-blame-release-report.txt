@@ -1,6 +1,6 @@
 1<?xml version="1.0" encoding="utf-8"?>
 2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-3    package="com.example.abysspath02"
+3    package="com.example.abysspath"
 4    android:versionCode="1"
 5    android:versionName="1.0.0" >
 6
@@ -34,12 +34,12 @@
 26
 27    <permission
 27-->[androidx.core:core:1.13.1] C:\Users\hexu8\.gradle\caches\8.10.2\transforms\8cf478dec41eed746328fa8046755ba2\transformed\core-1.13.1\AndroidManifest.xml:22:5-24:47
-28        android:name="com.example.abysspath02.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+28        android:name="com.example.abysspath.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
 28-->[androidx.core:core:1.13.1] C:\Users\hexu8\.gradle\caches\8.10.2\transforms\8cf478dec41eed746328fa8046755ba2\transformed\core-1.13.1\AndroidManifest.xml:23:9-81
 29        android:protectionLevel="signature" />
 29-->[androidx.core:core:1.13.1] C:\Users\hexu8\.gradle\caches\8.10.2\transforms\8cf478dec41eed746328fa8046755ba2\transformed\core-1.13.1\AndroidManifest.xml:24:9-44
 30
-31    <uses-permission android:name="com.example.abysspath02.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+31    <uses-permission android:name="com.example.abysspath.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
 31-->[androidx.core:core:1.13.1] C:\Users\hexu8\.gradle\caches\8.10.2\transforms\8cf478dec41eed746328fa8046755ba2\transformed\core-1.13.1\AndroidManifest.xml:26:5-97
 31-->[androidx.core:core:1.13.1] C:\Users\hexu8\.gradle\caches\8.10.2\transforms\8cf478dec41eed746328fa8046755ba2\transformed\core-1.13.1\AndroidManifest.xml:26:22-94
 32
@@ -51,8 +51,8 @@
 36        android:extractNativeLibs="true"
 37        android:icon="@mipmap/launcher_icon"
 37-->E:\kaifa\Project\Flutter\abysspath02\android\app\src\main\AndroidManifest.xml:6:9-45
-38        android:label="abysspath02" >
-38-->E:\kaifa\Project\Flutter\abysspath02\android\app\src\main\AndroidManifest.xml:4:9-36
+38        android:label="AbyssPath" >
+38-->E:\kaifa\Project\Flutter\abysspath02\android\app\src\main\AndroidManifest.xml:4:9-34
 39        <activity
 39-->E:\kaifa\Project\Flutter\abysspath02\android\app\src\main\AndroidManifest.xml:7:9-28:20
 40            android:name="com.example.abysspath02.MainActivity"
@@ -133,7 +133,7 @@
 85-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\hexu8\.gradle\caches\8.10.2\transforms\e80aa748ff6540407d8dba61c0d945fe\transformed\jetified-lifecycle-process-2.7.0\AndroidManifest.xml:24:9-32:20
 86            android:name="androidx.startup.InitializationProvider"
 86-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\hexu8\.gradle\caches\8.10.2\transforms\e80aa748ff6540407d8dba61c0d945fe\transformed\jetified-lifecycle-process-2.7.0\AndroidManifest.xml:25:13-67
-87            android:authorities="com.example.abysspath02.androidx-startup"
+87            android:authorities="com.example.abysspath.androidx-startup"
 87-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\hexu8\.gradle\caches\8.10.2\transforms\e80aa748ff6540407d8dba61c0d945fe\transformed\jetified-lifecycle-process-2.7.0\AndroidManifest.xml:26:13-68
 88            android:exported="false" >
 88-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\hexu8\.gradle\caches\8.10.2\transforms\e80aa748ff6540407d8dba61c0d945fe\transformed\jetified-lifecycle-process-2.7.0\AndroidManifest.xml:27:13-37

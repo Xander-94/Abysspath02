@@ -308,6 +308,12 @@
       "languageVersion": "3.4"
     },
     {
+      "name": "graphview",
+      "rootUri": "file:///C:/Users/hexu8/AppData/Local/Pub/Cache/hosted/pub.flutter-io.cn/graphview-1.2.0",
+      "packageUri": "lib/",
+      "languageVersion": "2.14"
+    },
+    {
       "name": "gtk",
       "rootUri": "file:///C:/Users/hexu8/AppData/Local/Pub/Cache/hosted/pub.flutter-io.cn/gtk-2.1.0",
       "packageUri": "lib/",
@@ -848,13 +854,13 @@
       "languageVersion": "3.0"
     },
     {
-      "name": "abysspath02",
+      "name": "abysspath",
       "rootUri": "../",
       "packageUri": "lib/",
       "languageVersion": "3.2"
     }
   ],
-  "generated": "2025-04-20T04:52:18.376213Z",
+  "generated": "2025-04-20T15:50:14.858863Z",
   "generator": "pub",
   "generatorVersion": "3.7.0",
   "flutterRoot": "file:///E:/kaifa/Flutter_Sdk/flutter",

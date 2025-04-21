@@ -1,6 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:abysspath02/features/assessment/models/assessment_profile.dart';
-import 'package:abysspath02/features/profile/services/profile_service.dart'; // 需要 ProfileService
+import 'package:abysspath/features/assessment/models/assessment_profile.dart';
+import 'package:abysspath/features/profile/services/profile_service.dart'; // 需要 ProfileService
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // 导入 Provider
 
 part 'assessment_profile_provider.g.dart';

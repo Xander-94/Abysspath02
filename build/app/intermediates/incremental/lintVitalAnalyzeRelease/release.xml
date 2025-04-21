@@ -29,7 +29,7 @@
   <artifact
       classOutputs="E:\kaifa\Project\Flutter\abysspath02\build\app\intermediates\javac\release\compileReleaseJavaWithJavac\classes;E:\kaifa\Project\Flutter\abysspath02\build\app\tmp\kotlin-classes\release;E:\kaifa\Project\Flutter\abysspath02\build\app\kotlinToolingMetadata;E:\kaifa\Project\Flutter\abysspath02\build\app\intermediates\compile_and_runtime_not_namespaced_r_class_jar\release\processReleaseResources\R.jar"
       type="MAIN"
-      applicationId="com.example.abysspath02"
+      applicationId="com.example.abysspath"
       generatedSourceFolders="E:\kaifa\Project\Flutter\abysspath02\build\app\generated\ap_generated_sources\release\out"
       generatedResourceFolders="E:\kaifa\Project\Flutter\abysspath02\build\app\generated\res\resValues\release"
       desugaredMethodsFiles="C:\Users\hexu8\.gradle\caches\8.10.2\transforms\58b2fa97deb6620e81e8f2146e68c814\transformed\D8BackportedDesugaredMethods.txt">
