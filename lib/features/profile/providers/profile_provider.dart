@@ -26,7 +26,7 @@ class ProfileProvider extends ChangeNotifier {
 
     _loading = false;
     notifyListeners();
-  }
+    }
 
   Future<bool> updateProfile(Profile profile) async {
     _loading = true;

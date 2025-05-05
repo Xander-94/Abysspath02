@@ -62,11 +62,12 @@ class _KnowledgeGraphViewState extends State<KnowledgeGraphView> with SingleTick
   /// 初始化布局算法
   void _initLayoutAlgorithm() {
     if (_currentLayout == LayoutType.tree) {
-      // 树形布局配置 - 增大间距
+      // 树形布局配置 - 增大间距并调整方向
       final configuration = BuchheimWalkerConfiguration()
-        ..orientation = BuchheimWalkerConfiguration.ORIENTATION_TOP_BOTTOM
-        ..levelSeparation = 80 // 增大层级间距 (原为 80)
-        ..siblingSeparation = 60; // 增大同级间距 (原为 50)
+        ..orientation = BuchheimWalkerConfiguration.ORIENTATION_LEFT_RIGHT  // 修改为从左到右的布局
+        ..levelSeparation = 100  // 增大层级间距
+        ..siblingSeparation = 80  // 增大同级节点间距
+        ..subtreeSeparation = 80;  // 增大子树间距
       layoutAlgorithm = BuchheimWalkerAlgorithm(configuration, TreeEdgeRenderer(configuration));
     } else {
       // 力导向布局配置
@@ -355,11 +356,11 @@ class _KnowledgeGraphViewState extends State<KnowledgeGraphView> with SingleTick
                   // 布局切换按钮
                   IconButton(
                     icon: Icon(_currentLayout == LayoutType.tree 
-                        ? Icons.account_tree 
-                        : Icons.hub),
+                        ? Icons.hub 
+                        : Icons.account_tree),
                     tooltip: _currentLayout == LayoutType.tree 
-                        ? '切换到力导向图' 
-                        : '切换到树形图',
+                        ? '切换到树形图' 
+                        : '切换到力导向图',
                     onPressed: _toggleLayout,
                   ),
                   IconButton(
@@ -426,16 +427,16 @@ class _KnowledgeGraphViewState extends State<KnowledgeGraphView> with SingleTick
               children: [
                   Icon(
                     _currentLayout == LayoutType.tree 
-                        ? Icons.account_tree 
-                        : Icons.hub,
+                        ? Icons.hub 
+                        : Icons.account_tree,
                     size: 18,
                     color: AppColors.primary,
                   ),
                   const SizedBox(width: 8),
                   Text(
                     _currentLayout == LayoutType.tree 
-                        ? '树形布局' 
-                        : '力导向布局',
+                        ? '力导向布局' 
+                        : '树形布局',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppColors.primary,

@@ -3,26 +3,44 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // 导入 Supabase
 import 'dart:developer' as developer; // 用于打印日志
 import 'dart:math' as math; // 添加dart:math库
+import 'dart:io' show Platform; // 导入 Platform 类
 
-// 从 dart-define 读取原始 BASE_URL，不包含 /api
-const _rawBaseUrl = String.fromEnvironment(
-  'BASE_URL',
-  defaultValue: 'http://10.0.2.2:8000', // 默认使用安卓模拟器地址
-);
+// 电脑的局域网 IP 地址 (请确保这个地址是正确的并且后端服务在此监听)
+const String hostLanIp = '172.17.10.232'; 
+
+// 根据平台自动选择基础 URL
+String get backendBaseUrl {
+  if (Platform.isAndroid) {
+    // Android 模拟器和真机都尝试使用电脑的局域网 IP
+    return 'http://$hostLanIp:8000'; 
+  } else if (Platform.isIOS) {
+    // iOS 模拟器使用 localhost，真机测试也可能需要 hostLanIp
+    // 暂时先用 localhost，如果iOS真机测试有问题再调整
+    return 'http://localhost:8000'; 
+  } else {
+    // 其他平台 (Windows, Web等) 默认使用局域网 IP
+    return 'http://$hostLanIp:8000';
+  }
+}
 
 // 构建完整 API URL
-const _baseUrl = '$_rawBaseUrl/api';
+final String _baseUrl = '${backendBaseUrl}/api';
 
 /// Dio实例提供器
 final dioProvider = Provider<Dio>((ref) {
-  developer.log('使用的后端 Base URL: $_baseUrl', name: 'DioProvider'); // 打印使用的URL
-  final dio = Dio(BaseOptions(
-    baseUrl: _baseUrl, // 使用包含 /api 的完整 URL
-    connectTimeout: const Duration(seconds: 30), // 将连接超时增加到 30 秒
-    receiveTimeout: const Duration(seconds: 300),
-    contentType: 'application/json',
+  developer.log('自动选择的后端 Base URL (带/api): $_baseUrl', name: 'DioProvider'); // 打印使用的URL
+  final options = BaseOptions(
+    baseUrl: _baseUrl,
+    connectTimeout: Duration(seconds: 60), // 连接超时时间设为 60 秒
+    receiveTimeout: Duration(seconds: 120), // 接收超时时间设为 120 秒
     validateStatus: (status) => status != null && status < 500,
-  ));
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Accept': 'application/json; charset=utf-8',
+    },
+  );
+
+  final dio = Dio(options);
 
   // 添加日志拦截器
   dio.interceptors.add(LogInterceptor(

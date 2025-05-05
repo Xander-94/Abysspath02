@@ -164,14 +164,18 @@ class CustomJSONResponse(JSONResponse):
         ).encode("utf-8")
 
 # 注册路由
-# 为业务路由添加 /api 前缀
-app.include_router(chat.router, prefix="/api")
-app.include_router(assessment.router, prefix="/api")
+logger.info("开始注册路由...")
+logger.info(f"注册chat路由: {chat.router.routes}")
+app.include_router(chat.router)
+logger.info(f"注册assessment路由: {assessment.router.routes}")
+app.include_router(assessment.router)
+logger.info(f"注册learning_path路由: {learning_path_router.router.routes}")
 app.include_router(learning_path_router.router, prefix="/api")
+logger.info("路由注册完成")
 
 @app.get("/")
 async def root():
-    return {"message": "Welcome to AbyssPath API"}
+    return {"message": "欢迎使用 AbyssPath API"}
 
 @app.get("/metrics")
 async def get_metrics():

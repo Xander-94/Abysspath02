@@ -1,8 +1,9 @@
 import os
-from supabase import create_client, Client
+from supabase import create_client, Client, ClientOptions
 from pathlib import Path
 from dotenv import load_dotenv
 import logging
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -24,4 +25,25 @@ def get_supabase_client() -> Client:
         raise ValueError("缺少必要的Supabase配置，请检查SUPABASE_URL和SUPABASE_KEY")
         
     logger.info(f"初始化Supabase客户端: {url}")
-    return create_client(url, key) 
+    
+    # 创建一个完全禁用代理的 httpx 客户端
+    transport = httpx.HTTPTransport(
+        retries=3,  # 增加重试次数
+        verify=True,  # 验证 SSL 证书
+    )
+    
+    # 创建具有更完整配置的 httpx 客户端
+    httpx_client = httpx.Client(
+        transport=transport,
+        proxies=None,  # 显式禁用代理
+        timeout=30.0,  # 增加超时时间
+        trust_env=False,  # 不信任环境变量（包括代理设置）
+        verify=True,  # 验证 SSL 证书
+        follow_redirects=True  # 允许重定向
+    )
+    
+    # 创建 ClientOptions 并设置自定义客户端
+    client_options = ClientOptions()
+    client_options.httpx_client = httpx_client
+    
+    return create_client(url, key, options=client_options) 
